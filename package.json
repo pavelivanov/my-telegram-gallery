@@ -3,9 +3,11 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
-    "dev:web": "pnpm --filter web dev",
+    "dev:admin": "pnpm --filter admin dev",
+    "dev:gallery": "pnpm --filter gallery dev",
     "dev:api": "pnpm --filter api start:dev",
-    "build:web": "pnpm --filter web build",
+    "build:admin": "pnpm --filter admin build",
+    "build:gallery": "pnpm --filter gallery build",
     "build:api": "pnpm --filter api build",
     "prisma:generate": "pnpm --filter api exec prisma generate",
     "prisma:migrate": "pnpm --filter api exec prisma migrate dev"
