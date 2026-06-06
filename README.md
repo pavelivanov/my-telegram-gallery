@@ -131,6 +131,15 @@ railway up apps/admin --path-as-root --service admin --ci
 railway up apps/gallery --path-as-root --service gallery --ci
 ```
 
+Or use the helper scripts in `scripts/`:
+
+```bash
+bash scripts/railway-deploy.sh                      # deploy api+admin+gallery, wait, health-check
+bash scripts/railway-deploy.sh --services api       # single service
+bash scripts/railway-env-push.sh api                # push apps/api/.env.production vars to Railway
+railway run bash scripts/verify-railway-mvp.sh      # check required env vars on the api service
+```
+
 In @BotFather, create two Mini Apps on the same bot (`/newapp`) and point them
 at the deployed `admin` and `gallery` domains.
 
