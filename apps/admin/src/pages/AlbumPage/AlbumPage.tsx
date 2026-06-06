@@ -3,6 +3,7 @@ import {
   Placeholder,
   Spinner,
 } from '@telegram-apps/telegram-ui';
+import { popup } from '@tma.js/sdk-react';
 import {
   useCallback,
   useEffect,
@@ -32,6 +33,8 @@ export const AlbumPage: FC = () => {
   const [album, setAlbum] = useState<AlbumDetail | null>(null);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<Photo | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(() => {
     api<AlbumDetail>(`/albums/${id}`)
@@ -70,6 +73,38 @@ export const AlbumPage: FC = () => {
         }
       }),
     );
+  };
+
+  const confirmDelete = async (): Promise<boolean> => {
+    if (popup.isSupported()) {
+      const button = await popup.show({
+        title: 'Delete photo?',
+        message: 'The photo is removed from the album and from storage.',
+        buttons: [
+          { id: 'delete', type: 'destructive', text: 'Delete' },
+          { id: 'cancel', type: 'cancel' },
+        ],
+      });
+      return button === 'delete';
+    }
+    return window.confirm('Delete photo?');
+  };
+
+  const deletePhoto = async (photo: Photo) => {
+    if (deleting || !(await confirmDelete())) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api<void>(`/photos/${photo.id}`, { method: 'DELETE' });
+      setAlbum((a) =>
+        a ? { ...a, photos: a.photos.filter((p) => p.id !== photo.id) } : a,
+      );
+      setViewer(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const dismissFailed = (uploadId: string) => {
@@ -153,6 +188,7 @@ export const AlbumPage: FC = () => {
               key={photo.id}
               className="album__tile"
               style={{ animationDelay: `${Math.min(i * 35, 420)}ms` }}
+              onClick={() => setViewer(photo)}
             >
               <img
                 className="album__tile-img"
@@ -165,6 +201,36 @@ export const AlbumPage: FC = () => {
               </figcaption>
             </figure>
           ))}
+        </div>
+      )}
+
+      {viewer && (
+        <div className="album__viewer" onClick={() => !deleting && setViewer(null)}>
+          <img
+            className="album__viewer-img"
+            src={viewer.url}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="album__viewer-bar" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="m"
+              mode="plain"
+              disabled={deleting}
+              onClick={() => setViewer(null)}
+            >
+              Close
+            </Button>
+            <Button
+              size="m"
+              mode="plain"
+              className="album__viewer-delete"
+              loading={deleting}
+              onClick={() => deletePhoto(viewer)}
+            >
+              Delete
+            </Button>
+          </div>
         </div>
       )}
     </Page>

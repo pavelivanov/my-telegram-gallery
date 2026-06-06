@@ -131,6 +131,52 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
+/* Photo viewer */
+.album__viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  background: rgba(0, 0, 0, 0.92);
+  animation: album-viewer-in 0.2s ease-out both;
+}
+
+.album__viewer-img {
+  max-width: 100%;
+  max-height: calc(100% - 72px);
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.album__viewer-bar {
+  display: flex;
+  gap: 24px;
+}
+
+.album__viewer-bar .tgui-button,
+.album__viewer-bar button {
+  color: #fff;
+}
+
+.album__viewer-delete,
+.album__viewer-bar .album__viewer-delete {
+  color: #ff5c5c;
+}
+
+@keyframes album-viewer-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes album-develop {
   from {
     opacity: 0;
