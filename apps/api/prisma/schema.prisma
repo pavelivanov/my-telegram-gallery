@@ -1,0 +1,32 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  tgId      BigInt   @unique
+  username  String?
+  firstName String?
+  photos    Photo[]
+  createdAt DateTime @default(now())
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  key       String   @unique // R2 object key
+  mimeType  String
+  size      Int
+  width     Int?
+  height    Int?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
