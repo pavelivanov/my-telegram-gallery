@@ -90,6 +90,9 @@ pnpm dev:api           # NestJS in watch mode → http://localhost:3000/api
 
 ### 5. Run the Mini Apps
 
+Both apps read `VITE_API_BASE_URL` (defaults to `http://localhost:3000`);
+copy `.env.example` to `.env` inside `apps/admin` / `apps/gallery` to override.
+
 ```bash
 pnpm dev:admin                  # admin app, plain HTTP
 pnpm dev:gallery                # gallery app, plain HTTP
