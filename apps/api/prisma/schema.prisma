@@ -20,6 +20,7 @@ model Album {
 model Photo {
   id        String   @id @default(cuid())
   key       String   @unique // R2 object key
+  thumbKey  String? // R2 key of the lightweight preview (webp), null for legacy rows
   mimeType  String
   size      Int
   width     Int?

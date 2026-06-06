@@ -30,7 +30,9 @@ export class AlbumsService {
       albums.map(async ({ _count, photos, ...album }) => ({
         ...album,
         photoCount: _count.photos,
-        coverUrl: photos[0] ? await this.r2.presignDownload(photos[0].key) : null,
+        coverUrl: photos[0]
+          ? await this.r2.presignDownload(photos[0].thumbKey ?? photos[0].key)
+          : null,
       })),
     );
   }
@@ -50,6 +52,9 @@ export class AlbumsService {
         album.photos.map(async (p) => ({
           ...p,
           url: await this.r2.presignDownload(p.key),
+          thumbUrl: p.thumbKey
+            ? await this.r2.presignDownload(p.thumbKey)
+            : null,
         })),
       ),
     };

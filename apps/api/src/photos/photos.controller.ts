@@ -36,6 +36,13 @@ export class PhotosController {
     return this.photos.confirmUpload(dto);
   }
 
+  /** One-shot: generate previews for photos that predate thumbnails. */
+  @Post('backfill-thumbs')
+  @UseGuards(AdminGuard)
+  backfillThumbs() {
+    return this.photos.backfillThumbs();
+  }
+
   @Delete(':id')
   @UseGuards(AdminGuard)
   remove(@Param('id') id: string) {

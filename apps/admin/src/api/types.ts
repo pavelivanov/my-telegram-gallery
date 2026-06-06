@@ -16,6 +16,7 @@ export interface Photo {
   position: number;
   createdAt: string;
   url: string;
+  thumbUrl: string | null;
 }
 
 export interface AlbumDetail {

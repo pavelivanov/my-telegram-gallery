@@ -46,7 +46,12 @@ const PhotoTile: FC<{
       style={{ animationDelay: `${Math.min(index * 35, 420)}ms` }}
       onClick={() => !isDragging && onOpen(photo)}
     >
-      <img className="album__tile-img" src={photo.url} alt="" loading="lazy" />
+      <img
+        className="album__tile-img"
+        src={photo.thumbUrl ?? photo.url}
+        alt=""
+        loading="lazy"
+      />
       <figcaption className="album__tile-num">
         {String(index + 1).padStart(3, '0')}
       </figcaption>
