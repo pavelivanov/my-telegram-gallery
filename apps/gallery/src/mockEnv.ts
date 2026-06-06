@@ -60,10 +60,11 @@ if (import.meta.env.DEV) {
         // ```
         // user=%7B%22id%22%3A279058397%2C%22first_name%22%3A%22Vladislav%22%2C%22last_name%22...
         // ```
-        // But in case you don't really need a valid init data, use this one:
+        // This init data is signed with the local dev TELEGRAM_BOT_TOKEN from
+        // apps/api/.env, so the local API accepts it (dev-only code path).
         ['tgWebAppData', new URLSearchParams([
-          ['auth_date', (new Date().getTime() / 1000 | 0).toString()],
-          ['hash', 'some-hash'],
+          ['auth_date', '1750000000'],
+          ['hash', '7b4b7dba2fb4ea832439fc6d6ada259544ee7b3190865a586346d0498e1a358b'],
           ['signature', 'some-signature'],
           ['user', JSON.stringify({ id: 1, first_name: 'Vladislav' })],
         ]).toString()],
