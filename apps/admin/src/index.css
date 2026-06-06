@@ -1,5 +1,69 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Prompt', sans-serif;
+  --font-body: 'Spline Sans', 'Helvetica Neue', Helvetica, sans-serif;
+
+  /* Night-gallery palette: warm near-black, ivory ink, brass accent.
+     Mirrors the gallery app for a consistent brand. */
+  --color-night: #0e0c09;
+  --color-card: #17140f;
+  --color-line: #2b261d;
+  --color-ink: #f2ede3;
+  --color-ink-dim: #9a917e;
+  --color-brass: #c9a35c;
+  --color-danger: #ff5c5c;
+
+  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade: fade 0.4s ease both;
+  /* `backwards` (not `both`): a persistent end-keyframe transform would
+     override dnd-kit's inline drag transform. */
+  --animate-develop: develop 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-pulse-veil: pulse-veil 1.4s ease-in-out infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes develop {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  @keyframes pulse-veil {
+    0%,
+    100% {
+      background: rgba(0, 0, 0, 0.25);
+    }
+    50% {
+      background: rgba(0, 0, 0, 0.45);
+    }
+  }
+}
+
 body {
-  background: var(--tg-theme-secondary-bg-color, white);
-  padding: 0;
   margin: 0;
+  padding: 0;
+  background: var(--color-night);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }

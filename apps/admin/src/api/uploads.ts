@@ -14,8 +14,19 @@ async function imageDimensions(
   }
 }
 
-/** Presign → direct PUT to R2 → confirm. Returns the persisted photo. */
-export async function uploadPhoto(albumId: string, file: File): Promise<Photo> {
+export interface StagedUpload {
+  key: string;
+  mimeType: string;
+  size: number;
+  width?: number;
+  height?: number;
+}
+
+/** Stage 1: presign → direct PUT to R2. Safe to run concurrently. */
+export async function stagePhoto(
+  albumId: string,
+  file: File,
+): Promise<StagedUpload> {
   const contentType = file.type || 'application/octet-stream';
   const { key, uploadUrl } = await api<{ key: string; uploadUrl: string }>(
     '/photos/upload',
@@ -35,14 +46,19 @@ export async function uploadPhoto(albumId: string, file: File): Promise<Photo> {
   }
 
   const dims = await imageDimensions(file);
+  return { key, mimeType: contentType, size: file.size, ...dims };
+}
+
+/**
+ * Stage 2: confirm — the server assigns the photo the album's front
+ * position at confirm time, so confirm order controls display order.
+ */
+export function confirmPhoto(
+  albumId: string,
+  staged: StagedUpload,
+): Promise<Photo> {
   return api<Photo>('/photos/confirm', {
     method: 'POST',
-    body: JSON.stringify({
-      albumId,
-      key,
-      mimeType: contentType,
-      size: file.size,
-      ...dims,
-    }),
+    body: JSON.stringify({ albumId, ...staged }),
   });
 }

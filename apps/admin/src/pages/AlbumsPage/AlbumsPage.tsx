@@ -1,21 +1,10 @@
-import {
-  Button,
-  Cell,
-  Image,
-  Input,
-  List,
-  Placeholder,
-  Section,
-  Spinner,
-} from '@telegram-apps/telegram-ui';
 import { useCallback, useEffect, useState, type FC, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { api } from '@/api/client';
 import type { Album } from '@/api/types';
 import { Page } from '@/components/Page';
-
-import './AlbumsPage.css';
+import { Button, Placeholder, Spinner } from '@/components/Ui';
 
 export const AlbumsPage: FC = () => {
   const navigate = useNavigate();
@@ -54,83 +43,103 @@ export const AlbumsPage: FC = () => {
 
   return (
     <Page back={false}>
-      <div className="albums__masthead">
-        <span className="albums__kicker">my gallery</span>
-        <h1 className="albums__title">Albums</h1>
+      <header className="animate-rise px-5 pt-10 pb-6">
+        <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
+          my gallery
+        </span>
+        <h1 className="mt-2 font-display text-[34px] font-light leading-none">
+          Albums
+        </h1>
         {albums && (
-          <span className="albums__count">
+          <p className="mt-3 text-[13px] tabular-nums text-ink-dim">
             {albums.length} {albums.length === 1 ? 'album' : 'albums'} ·{' '}
             {albums.reduce((n, a) => n + a.photoCount, 0)} photos
-          </span>
+          </p>
         )}
-      </div>
+      </header>
 
-      <List>
-        <Section footer={error ?? undefined}>
-          <form className="albums__create" onSubmit={createAlbum}>
-            <Input
-              header="New album"
-              placeholder="Album name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={creating}
-            />
-            <div className="albums__create-action">
-              <Button
-                size="m"
-                stretched
-                type="submit"
-                disabled={!name.trim() || creating}
-                loading={creating}
-              >
-                Create album
-              </Button>
-            </div>
-          </form>
-        </Section>
+      <form
+        className="mx-5 flex flex-col gap-3 rounded-2xl border border-line bg-card p-4"
+        onSubmit={createAlbum}
+      >
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-dim">
+            New album
+          </span>
+          <input
+            className="w-full rounded-xl border border-line bg-night px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-dim focus:border-brass"
+            placeholder="Album name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={creating}
+          />
+        </label>
+        <Button type="submit" disabled={!name.trim() || creating} loading={creating}>
+          Create album
+        </Button>
+        {error && (
+          <p className="text-[13px] text-danger [overflow-wrap:anywhere]">{error}</p>
+        )}
+      </form>
 
-        {albums === null ? (
-          error ? (
-            <Placeholder header="Failed to load albums" description={error} />
-          ) : (
-            <div className="albums__loading">
-              <Spinner size="m" />
-            </div>
-          )
-        ) : albums.length === 0 ? (
-          <Placeholder
-            header="No albums yet"
-            description="Create your first album above — photos live inside albums."
-          >
-            <div className="albums__empty-frame" aria-hidden>
-              ✦
-            </div>
-          </Placeholder>
+      {albums === null ? (
+        error ? (
+          <Placeholder header="Failed to load albums" description={error} />
         ) : (
-          <Section>
-            {albums.map((album, i) => (
-              <Cell
-                key={album.id}
-                className="albums__cell"
-                style={{ animationDelay: `${Math.min(i * 45, 360)}ms` }}
-                before={
-                  album.coverUrl ? (
-                    <Image size={48} src={album.coverUrl} />
-                  ) : (
-                    <div className="albums__cover-blank" aria-hidden>
-                      ✦
-                    </div>
-                  )
-                }
-                subtitle={`${album.photoCount} ${album.photoCount === 1 ? 'photo' : 'photos'}`}
+          <div className="flex justify-center py-24">
+            <Spinner />
+          </div>
+        )
+      ) : albums.length === 0 ? (
+        <Placeholder
+          header="No albums yet"
+          description="Create your first album above — photos live inside albums."
+        >
+          <div
+            className="flex h-24 w-24 items-center justify-center rounded-xl border-[1.5px] border-dashed border-line font-display text-[28px] text-brass"
+            aria-hidden
+          >
+            ✦
+          </div>
+        </Placeholder>
+      ) : (
+        <ul className="mx-5 mt-5 mb-12 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-card">
+          {albums.map((album, i) => (
+            <li
+              key={album.id}
+              className="animate-rise"
+              style={{ animationDelay: `${Math.min(i * 45, 360)}ms` }}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left active:bg-night"
                 onClick={() => navigate(`/albums/${album.id}`)}
               >
-                {album.name}
-              </Cell>
-            ))}
-          </Section>
-        )}
-      </List>
+                {album.coverThumbUrl ?? album.coverUrl ? (
+                  <img
+                    className="h-12 w-12 shrink-0 rounded-xl object-cover"
+                    src={(album.coverThumbUrl ?? album.coverUrl)!}
+                    alt=""
+                  />
+                ) : (
+                  <div
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-[1.5px] border-dashed border-line text-[16px] text-ink-dim"
+                    aria-hidden
+                  >
+                    ✦
+                  </div>
+                )}
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-[16px] text-ink">{album.name}</span>
+                  <span className="text-[13px] tabular-nums text-ink-dim">
+                    {album.photoCount} {album.photoCount === 1 ? 'photo' : 'photos'}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </Page>
   );
 };

@@ -27,13 +27,23 @@ export class AlbumsService {
       },
     });
     return Promise.all(
-      albums.map(async ({ _count, photos, ...album }) => ({
-        ...album,
-        photoCount: _count.photos,
-        coverUrl: photos[0]
-          ? await this.r2.presignDownload(photos[0].thumbKey ?? photos[0].key)
-          : null,
-      })),
+      albums.map(async ({ _count, photos, ...album }) => {
+        const cover = photos[0];
+        return {
+          ...album,
+          photoCount: _count.photos,
+          // Medium-res preview: covers render near full-width in the gallery.
+          coverUrl: cover
+            ? await this.r2.presignDownload(
+                cover.previewKey ?? cover.thumbKey ?? cover.key,
+              )
+            : null,
+          // Lightweight variant for small cover avatars (admin list).
+          coverThumbUrl: cover
+            ? await this.r2.presignDownload(cover.thumbKey ?? cover.key)
+            : null,
+        };
+      }),
     );
   }
 

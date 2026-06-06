@@ -21,7 +21,7 @@ export const AlbumsPage: FC = () => {
         <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
           the collection
         </span>
-        <h1 className="mt-2 font-display text-[34px] font-light italic leading-none">
+        <h1 className="mt-2 font-display text-[34px] leading-none">
           Gallery
         </h1>
         {albums && albums.length > 0 && (
@@ -83,7 +83,7 @@ export const AlbumsPage: FC = () => {
                 </span>
 
                 <div className="absolute inset-x-0 bottom-0 flex items-baseline justify-between gap-3 px-4 pb-3.5">
-                  <h2 className="font-display text-[22px] font-light leading-tight">
+                  <h2 className="font-display text-[22px] leading-tight">
                     {album.name}
                   </h2>
                   <span className="shrink-0 text-[12px] text-ink-dim">

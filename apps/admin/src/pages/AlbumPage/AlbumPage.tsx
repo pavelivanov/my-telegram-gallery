@@ -1,11 +1,6 @@
 import { move } from '@dnd-kit/helpers';
 import { DragDropProvider } from '@dnd-kit/react';
 import { useSortable } from '@dnd-kit/react/sortable';
-import {
-  Button,
-  Placeholder,
-  Spinner,
-} from '@telegram-apps/telegram-ui';
 import { popup } from '@tma.js/sdk-react';
 import {
   useCallback,
@@ -15,20 +10,79 @@ import {
   type ChangeEvent,
   type FC,
 } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import { api } from '@/api/client';
 import type { AlbumDetail, Photo } from '@/api/types';
-import { uploadPhoto } from '@/api/uploads';
+import { confirmPhoto, stagePhoto } from '@/api/uploads';
 import { Page } from '@/components/Page';
-
-import './AlbumPage.css';
+import { Button, Placeholder, Spinner } from '@/components/Ui';
 
 interface PendingUpload {
   id: string;
   previewUrl: string;
   status: 'uploading' | 'error';
 }
+
+const tileClass =
+  'relative m-0 aspect-square touch-manipulation overflow-hidden rounded bg-card';
+const tileImgClass = 'block h-full w-full object-cover';
+
+/**
+ * Entrance animation that runs once and then detaches itself. Keeping
+ * `animate-develop` on the element permanently means any DOM re-insertion
+ * (React moving nodes on dnd-kit reorder) restarts the animation and the
+ * tile flashes invisible. Once the animation ends, the class and delay are
+ * removed so moved nodes have nothing to restart.
+ */
+function useEntranceAnimation(index: number) {
+  const [entered, setEntered] = useState(false);
+  const animationDelay = useRef(`${Math.min(index * 35, 420)}ms`).current;
+  return entered
+    ? { className: '', style: undefined, onAnimationEnd: undefined }
+    : {
+        className: ' animate-develop',
+        style: { animationDelay },
+        onAnimationEnd: () => setEntered(true),
+      };
+}
+
+const PendingTile: FC<{
+  upload: PendingUpload;
+  onDismiss: (uploadId: string) => void;
+}> = ({ upload, onDismiss }) => {
+  const entrance = useEntranceAnimation(0);
+
+  return (
+    <div
+      className={`${tileClass}${entrance.className}`}
+      style={entrance.style}
+      onAnimationEnd={entrance.onAnimationEnd}
+      onClick={
+        upload.status === 'error' ? () => onDismiss(upload.id) : undefined
+      }
+    >
+      <img
+        className={`${tileImgClass} brightness-[0.7] grayscale-[0.4]`}
+        src={upload.previewUrl}
+        alt=""
+      />
+      <div
+        className={`absolute inset-0 flex items-center justify-center bg-black/25${
+          upload.status === 'uploading' ? ' animate-pulse-veil' : ''
+        }`}
+      >
+        {upload.status === 'uploading' ? (
+          <Spinner className="h-4 w-4 text-white" />
+        ) : (
+          <span className="px-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
+            failed — tap to dismiss
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // Default PointerSensor activation: long-press (250ms) on touch, short
 // drag distance on mouse — plain taps still open the photo viewer.
@@ -38,21 +92,25 @@ const PhotoTile: FC<{
   onOpen: (photo: Photo) => void;
 }> = ({ photo, index, onOpen }) => {
   const { ref, isDragging } = useSortable({ id: photo.id, index });
+  const entrance = useEntranceAnimation(index);
 
   return (
     <figure
       ref={ref}
-      className={`album__tile${isDragging ? ' album__tile--dragging' : ''}`}
-      style={{ animationDelay: `${Math.min(index * 35, 420)}ms` }}
+      className={`${tileClass}${entrance.className}${
+        isDragging ? ' z-10 opacity-90 shadow-[0_8px_24px_rgba(0,0,0,0.45)]' : ''
+      }`}
+      style={entrance.style}
+      onAnimationEnd={entrance.onAnimationEnd}
       onClick={() => !isDragging && onOpen(photo)}
     >
       <img
-        className="album__tile-img"
+        className={tileImgClass}
         src={photo.thumbUrl ?? photo.url}
         alt=""
         loading="lazy"
       />
-      <figcaption className="album__tile-num">
+      <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-1.5 pt-3.5 pb-1 text-[10px] font-semibold tracking-[0.12em] tabular-nums text-white">
         {String(index + 1).padStart(3, '0')}
       </figcaption>
     </figure>
@@ -82,29 +140,40 @@ export const AlbumPage: FC = () => {
     if (!files.length) return;
     setError(null);
 
-    await Promise.all(
-      files.map(async (file) => {
-        const item: PendingUpload = {
-          id: crypto.randomUUID(),
-          previewUrl: URL.createObjectURL(file),
-          status: 'uploading',
-        };
-        setPending((p) => [item, ...p]);
-        try {
-          const photo = await uploadPhoto(id, file);
-          setPending((p) => p.filter((u) => u.id !== item.id));
-          setAlbum((a) =>
-            a ? { ...a, photos: [photo as Photo, ...a.photos] } : a,
-          );
-          URL.revokeObjectURL(item.previewUrl);
-        } catch (err) {
-          setPending((p) =>
-            p.map((u) => (u.id === item.id ? { ...u, status: 'error' } : u)),
-          );
-          setError((err as Error).message);
-        }
-      }),
-    );
+    // Pending previews append to the end of the grid in selection order.
+    const entries = files.map((file) => ({
+      file,
+      item: {
+        id: crypto.randomUUID(),
+        previewUrl: URL.createObjectURL(file),
+        status: 'uploading',
+      } satisfies PendingUpload,
+    }));
+    setPending((p) => [...p, ...entries.map((entry) => entry.item)]);
+
+    // Stage 1 concurrently: presign + direct PUT to R2.
+    const staged = entries.map((entry) => ({
+      ...entry,
+      promise: stagePhoto(id, entry.file),
+    }));
+
+    // Stage 2 sequentially in selection order: the server appends each
+    // confirmed photo to the album's end, so confirm order = final order.
+    for (const upload of staged) {
+      try {
+        const photo = await confirmPhoto(id, await upload.promise);
+        setPending((p) => p.filter((u) => u.id !== upload.item.id));
+        setAlbum((a) => (a ? { ...a, photos: [...a.photos, photo] } : a));
+        URL.revokeObjectURL(upload.item.previewUrl);
+      } catch (err) {
+        setPending((p) =>
+          p.map((u) =>
+            u.id === upload.item.id ? { ...u, status: 'error' } : u,
+          ),
+        );
+        setError((err as Error).message);
+      }
+    }
   };
 
   const confirmDelete = async (): Promise<boolean> => {
@@ -162,11 +231,19 @@ export const AlbumPage: FC = () => {
   if (!album) {
     return (
       <Page>
+        <div className="animate-rise px-5 pt-10">
+          <Link
+            to="/"
+            className="inline-flex w-fit items-center gap-2 text-[11px] font-medium uppercase tracking-[0.32em] text-brass transition-opacity active:opacity-60"
+          >
+            <span aria-hidden>←</span> albums
+          </Link>
+        </div>
         {error ? (
           <Placeholder header="Failed to load album" description={error} />
         ) : (
-          <div className="album__loading">
-            <Spinner size="m" />
+          <div className="flex justify-center py-24">
+            <Spinner />
           </div>
         )}
       </Page>
@@ -177,27 +254,36 @@ export const AlbumPage: FC = () => {
 
   return (
     <Page>
-      <div className="album__masthead">
-        <span className="album__kicker">album</span>
-        <h1 className="album__title">{album.name}</h1>
-        <span className="album__count">
+      <header className="animate-rise px-5 pt-10 pb-2">
+        <Link
+          to="/"
+          className="inline-flex w-fit items-center gap-2 text-[11px] font-medium uppercase tracking-[0.32em] text-brass transition-opacity active:opacity-60"
+        >
+          <span aria-hidden>←</span> albums
+        </Link>
+        <h1 className="mt-2 font-display text-[28px] font-light leading-tight [overflow-wrap:anywhere]">
+          {album.name}
+        </h1>
+        <p className="mt-2 text-[13px] tabular-nums text-ink-dim">
           {total} {total === 1 ? 'photo' : 'photos'}
-        </span>
-      </div>
+        </p>
+      </header>
 
-      <div className="album__toolbar">
+      <div className="px-5 pt-3 pb-4">
         <input
           ref={fileInput}
-          className="album__file-input"
+          className="hidden"
           type="file"
           accept="image/*"
           multiple
           onChange={onFiles}
         />
-        <Button size="l" stretched onClick={() => fileInput.current?.click()}>
-          Upload photos
-        </Button>
-        {error && <p className="album__error">{error}</p>}
+        <Button onClick={() => fileInput.current?.click()}>Upload photos</Button>
+        {error && (
+          <p className="mt-2.5 text-[13px] text-danger [overflow-wrap:anywhere]">
+            {error}
+          </p>
+        )}
       </div>
 
       {total === 0 && pending.length === 0 ? (
@@ -205,7 +291,10 @@ export const AlbumPage: FC = () => {
           header="Empty album"
           description="Photos you upload appear here as a contact sheet. Long-press a photo to reorder."
         >
-          <div className="album__empty-frame" aria-hidden>
+          <div
+            className="flex h-24 w-24 items-center justify-center rounded-xl border-[1.5px] border-dashed border-line font-display text-[28px] text-brass"
+            aria-hidden
+          >
             ✦
           </div>
         </Placeholder>
@@ -219,51 +308,40 @@ export const AlbumPage: FC = () => {
             persistOrder(next);
           }}
         >
-          <div className="album__grid">
-            {pending.map((u) => (
-              <div
-                key={u.id}
-                className={`album__tile album__tile--${u.status}`}
-                onClick={u.status === 'error' ? () => dismissFailed(u.id) : undefined}
-              >
-                <img className="album__tile-img" src={u.previewUrl} alt="" />
-                <div className="album__tile-veil">
-                  {u.status === 'uploading' ? (
-                    <Spinner size="s" />
-                  ) : (
-                    <span className="album__tile-error">failed — tap to dismiss</span>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="grid grid-cols-3 gap-[3px] px-[3px] pb-8">
             {album.photos.map((photo, i) => (
               <PhotoTile key={photo.id} photo={photo} index={i} onOpen={setViewer} />
+            ))}
+            {pending.map((u) => (
+              <PendingTile key={u.id} upload={u} onDismiss={dismissFailed} />
             ))}
           </div>
         </DragDropProvider>
       )}
 
       {viewer && (
-        <div className="album__viewer" onClick={() => !deleting && setViewer(null)}>
+        <div
+          className="animate-fade fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3 bg-black/90 px-4 py-6"
+          onClick={() => !deleting && setViewer(null)}
+        >
           <img
-            className="album__viewer-img"
+            className="max-h-[calc(100%-72px)] max-w-full rounded-md object-contain"
             src={viewer.url}
             alt=""
             onClick={(e) => e.stopPropagation()}
           />
-          <div className="album__viewer-bar" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-6" onClick={(e) => e.stopPropagation()}>
             <Button
-              size="m"
-              mode="plain"
+              variant="plain"
+              className="text-white"
               disabled={deleting}
               onClick={() => setViewer(null)}
             >
               Close
             </Button>
             <Button
-              size="m"
-              mode="plain"
-              className="album__viewer-delete"
+              variant="plain"
+              className="text-[#ff5c5c]"
               loading={deleting}
               onClick={() => deletePhoto(viewer)}
             >

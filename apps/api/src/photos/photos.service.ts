@@ -6,6 +6,8 @@ import { R2Service } from '../storage/r2.service';
 
 const THUMB_MAX_DIM = 512;
 const THUMB_QUALITY = 75;
+const PREVIEW_MAX_DIM = 1280;
+const PREVIEW_QUALITY = 80;
 
 @Injectable()
 export class PhotosService {
@@ -26,27 +28,48 @@ export class PhotosService {
   }
 
   /**
-   * Downscale the original into a lightweight webp preview stored next to it.
-   * Returns the thumb key, or null when the source can't be processed.
+   * Downscale the original into webp previews stored next to it:
+   * a lightweight thumb for grids and a medium-res preview for album covers.
+   * Each key is null when the source (or that variant) can't be processed.
    */
-  private async generateThumb(key: string): Promise<string | null> {
+  private async generatePreviews(
+    key: string,
+  ): Promise<{ thumbKey: string | null; previewKey: string | null }> {
+    let original: Buffer;
     try {
-      const original = await this.r2.getObjectBuffer(key);
-      const thumb = await sharp(original)
-        .rotate() // respect EXIF orientation
-        .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .webp({ quality: THUMB_QUALITY })
-        .toBuffer();
-      const thumbKey = `${key}.thumb.webp`;
-      await this.r2.putObject(thumbKey, thumb, 'image/webp');
-      return thumbKey;
+      original = await this.r2.getObjectBuffer(key);
     } catch (e) {
-      this.logger.warn(`Thumbnail generation failed for ${key}: ${e}`);
-      return null;
+      this.logger.warn(`Preview generation failed for ${key}: ${e}`);
+      return { thumbKey: null, previewKey: null };
     }
+
+    const variant = async (
+      maxDim: number,
+      quality: number,
+      suffix: string,
+    ): Promise<string | null> => {
+      try {
+        const resized = await sharp(original)
+          .rotate() // respect EXIF orientation
+          .resize(maxDim, maxDim, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .webp({ quality })
+          .toBuffer();
+        const variantKey = `${key}.${suffix}.webp`;
+        await this.r2.putObject(variantKey, resized, 'image/webp');
+        return variantKey;
+      } catch (e) {
+        this.logger.warn(`${suffix} generation failed for ${key}: ${e}`);
+        return null;
+      }
+    };
+
+    return {
+      thumbKey: await variant(THUMB_MAX_DIM, THUMB_QUALITY, 'thumb'),
+      previewKey: await variant(PREVIEW_MAX_DIM, PREVIEW_QUALITY, 'preview'),
+    };
   }
 
   /** Step 2 (admin): confirm upload finished — persist the record. */
@@ -58,14 +81,19 @@ export class PhotosService {
     width?: number;
     height?: number;
   }) {
-    // New photos go to the front of the album (position ascending = display order).
-    const min = await this.prisma.photo.aggregate({
+    // New photos append to the end of the album (position ascending = display order).
+    const max = await this.prisma.photo.aggregate({
       where: { albumId: data.albumId },
-      _min: { position: true },
+      _max: { position: true },
     });
-    const thumbKey = await this.generateThumb(data.key);
+    const { thumbKey, previewKey } = await this.generatePreviews(data.key);
     const photo = await this.prisma.photo.create({
-      data: { ...data, thumbKey, position: (min._min.position ?? 1) - 1 },
+      data: {
+        ...data,
+        thumbKey,
+        previewKey,
+        position: (max._max.position ?? 0) + 1,
+      },
     });
     return {
       ...photo,
@@ -76,18 +104,23 @@ export class PhotosService {
     };
   }
 
-  /** Admin: generate previews for photos uploaded before thumbnails existed. */
+  /** Admin: generate previews for photos missing any preview variant. */
   async backfillThumbs() {
     const photos = await this.prisma.photo.findMany({
-      where: { thumbKey: null },
+      where: { OR: [{ thumbKey: null }, { previewKey: null }] },
     });
     let done = 0;
     for (const photo of photos) {
-      const thumbKey = await this.generateThumb(photo.key);
-      if (thumbKey) {
+      // Variant keys are deterministic, so regenerating an existing
+      // variant just overwrites the same object — no orphans.
+      const { thumbKey, previewKey } = await this.generatePreviews(photo.key);
+      if (thumbKey || previewKey) {
         await this.prisma.photo.update({
           where: { id: photo.id },
-          data: { thumbKey },
+          data: {
+            thumbKey: thumbKey ?? photo.thumbKey,
+            previewKey: previewKey ?? photo.previewKey,
+          },
         });
         done++;
       }
@@ -115,6 +148,7 @@ export class PhotosService {
     if (!photo) throw new NotFoundException();
     await this.r2.delete(photo.key);
     if (photo.thumbKey) await this.r2.delete(photo.thumbKey);
+    if (photo.previewKey) await this.r2.delete(photo.previewKey);
     await this.prisma.photo.delete({ where: { id } });
   }
 }

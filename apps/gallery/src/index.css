@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-display: 'Prompt', sans-serif;
   --font-body: 'Spline Sans', 'Helvetica Neue', Helvetica, sans-serif;
 
   /* Night-gallery palette: warm near-black, ivory ink, brass accent. */

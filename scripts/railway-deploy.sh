@@ -6,7 +6,11 @@ usage() {
 Deploy selected Railway services and wait for terminal deployment status.
 
 Usage:
-  bash scripts/railway-deploy.sh [options]
+  bash scripts/railway-deploy.sh [services...] [options]
+
+Arguments:
+  services                   Service names to deploy: api, admin, gallery
+                             (default: all three). Equivalent to --services.
 
 Options:
   --services <csv>           Comma-separated service names (default: api,admin,gallery)
@@ -24,6 +28,8 @@ Options:
 
 Examples:
   bash scripts/railway-deploy.sh
+  bash scripts/railway-deploy.sh gallery
+  bash scripts/railway-deploy.sh api admin
   bash scripts/railway-deploy.sh --services api --health-url "https://api-production-826a8.up.railway.app/api/health"
   bash scripts/railway-deploy.sh --project <project-id> --environment production --services api
 EOF
@@ -215,6 +221,7 @@ PROJECT=""
 ENVIRONMENT=""
 SKIP_HEALTH_CHECK=0
 LAST_DEPLOYMENT_ID=""
+POSITIONAL_SERVICES=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -262,13 +269,27 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
-    *)
-      echo "Unknown argument: $1" >&2
+    -*)
+      echo "Unknown option: $1" >&2
       usage
       exit 1
       ;;
+    *)
+      if [[ -d "apps/$1" ]]; then
+        POSITIONAL_SERVICES+=("$1")
+      else
+        echo "Unknown service: $1 (no apps/$1 directory)" >&2
+        usage
+        exit 1
+      fi
+      shift
+      ;;
   esac
 done
+
+if [[ "${#POSITIONAL_SERVICES[@]}" -gt 0 ]]; then
+  SERVICES_CSV="$(IFS=','; echo "${POSITIONAL_SERVICES[*]}")"
+fi
 
 if [[ -z "$SERVICES_CSV" ]]; then
   echo "--services cannot be empty" >&2

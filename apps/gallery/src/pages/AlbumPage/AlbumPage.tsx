@@ -1,5 +1,5 @@
 import { useEffect, useState, type FC } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import { api } from '@/api/client';
 import type { AlbumDetail } from '@/api/types';
@@ -20,7 +20,19 @@ export const AlbumPage: FC = () => {
   }, [id]);
 
   if (!album) {
-    return <Page>{error ? <ErrorNote message={error} /> : <Loading />}</Page>;
+    return (
+      <Page>
+        <div className="animate-rise px-5 pt-10">
+          <Link
+            to="/"
+            className="inline-flex w-fit items-center gap-2 text-[11px] font-medium uppercase tracking-[0.32em] text-brass transition-opacity active:opacity-60"
+          >
+            <span aria-hidden>←</span> the collection
+          </Link>
+        </div>
+        {error ? <ErrorNote message={error} /> : <Loading />}
+      </Page>
+    );
   }
 
   const total = album.photos.length;
@@ -28,10 +40,13 @@ export const AlbumPage: FC = () => {
   return (
     <Page>
       <header className="animate-rise px-5 pt-10 pb-6">
-        <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
-          album
-        </span>
-        <h1 className="mt-2 font-display text-[28px] font-light leading-tight">
+        <Link
+          to="/"
+          className="inline-flex w-fit items-center gap-2 text-[11px] font-medium uppercase tracking-[0.32em] text-brass transition-opacity active:opacity-60"
+        >
+          <span aria-hidden>←</span> the collection
+        </Link>
+        <h1 className="mt-2 font-display text-[28px] leading-tight">
           {album.name}
         </h1>
         <p className="mt-2 text-[13px] text-ink-dim">
@@ -56,7 +71,7 @@ export const AlbumPage: FC = () => {
             >
               <button
                 type="button"
-                className="block aspect-square w-full overflow-hidden bg-card"
+                className="block aspect-square w-full rounded overflow-hidden bg-card"
                 onClick={() => setViewerIndex(i)}
               >
                 <img

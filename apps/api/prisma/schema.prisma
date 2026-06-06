@@ -18,17 +18,18 @@ model Album {
 }
 
 model Photo {
-  id        String   @id @default(cuid())
-  key       String   @unique // R2 object key
-  thumbKey  String? // R2 key of the lightweight preview (webp), null for legacy rows
-  mimeType  String
-  size      Int
-  width     Int?
-  height    Int?
-  position  Int      @default(0) // manual sort order within the album (asc)
-  album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  albumId   String
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  key        String   @unique // R2 object key
+  thumbKey   String? // R2 key of the lightweight grid preview (webp), null for legacy rows
+  previewKey String? // R2 key of the medium-res preview (webp) used for album covers
+  mimeType   String
+  size       Int
+  width      Int?
+  height     Int?
+  position   Int      @default(0) // manual sort order within the album (asc)
+  album      Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumId    String
+  createdAt  DateTime @default(now())
 
   @@index([albumId, position])
 }

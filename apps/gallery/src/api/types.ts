@@ -4,6 +4,7 @@ export interface Album {
   createdAt: string;
   photoCount: number;
   coverUrl: string | null;
+  coverThumbUrl: string | null;
 }
 
 export interface Photo {
