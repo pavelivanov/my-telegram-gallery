@@ -18,11 +18,11 @@ push_env() {
     [[ -z "$line" || "$line" == \#* ]] && continue
     local key="${line%%=*}"
     local val="${line#*=}"
-    # skip empty values
-    [ -z "$val" ] && continue
     # strip surrounding quotes
     val="${val#\"}"
     val="${val%\"}"
+    # skip empty values
+    [ -z "$val" ] && continue
     # convert literal \n to real newlines (for PEM keys etc.)
     val="${val//\\n/$'\n'}"
     args+=("${key}=${val}")
