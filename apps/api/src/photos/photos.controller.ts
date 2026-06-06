@@ -27,7 +27,7 @@ export class PhotosController {
   @Post('upload')
   @UseGuards(AdminGuard)
   createUpload(@Body() dto: CreateUploadDto) {
-    return this.photos.createUpload(dto.contentType);
+    return this.photos.createUpload(dto.albumId, dto.contentType);
   }
 
   @Post('confirm')

@@ -1,11 +1,17 @@
 import { IsInt, IsMimeType, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateUploadDto {
+  @IsString()
+  albumId: string;
+
   @IsMimeType()
   contentType: string;
 }
 
 export class ConfirmUploadDto {
+  @IsString()
+  albumId: string;
+
   @IsString()
   key: string;
 

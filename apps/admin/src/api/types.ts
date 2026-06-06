@@ -1,0 +1,25 @@
+export interface Album {
+  id: string;
+  name: string;
+  createdAt: string;
+  photoCount: number;
+  coverUrl: string | null;
+}
+
+export interface Photo {
+  id: string;
+  key: string;
+  mimeType: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+  url: string;
+}
+
+export interface AlbumDetail {
+  id: string;
+  name: string;
+  createdAt: string;
+  photos: Photo[];
+}

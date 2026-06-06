@@ -11,21 +11,25 @@ export class PhotosService {
   ) {}
 
   /** Step 1 (admin): get a presigned upload URL. */
-  async createUpload(contentType: string) {
-    const key = `photos/${randomUUID()}`;
+  async createUpload(albumId: string, contentType: string) {
+    const album = await this.prisma.album.findUnique({ where: { id: albumId } });
+    if (!album) throw new NotFoundException('Album not found');
+    const key = `photos/${albumId}/${randomUUID()}`;
     const uploadUrl = await this.r2.presignUpload(key, contentType);
     return { key, uploadUrl };
   }
 
   /** Step 2 (admin): confirm upload finished — persist the record. */
-  confirmUpload(data: {
+  async confirmUpload(data: {
+    albumId: string;
     key: string;
     mimeType: string;
     size: number;
     width?: number;
     height?: number;
   }) {
-    return this.prisma.photo.create({ data });
+    const photo = await this.prisma.photo.create({ data });
+    return { ...photo, url: await this.r2.presignDownload(photo.key) };
   }
 
   /** Any authenticated Telegram user: list the gallery. */

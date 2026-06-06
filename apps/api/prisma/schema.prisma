@@ -8,6 +8,15 @@ datasource db {
   provider = "postgresql"
 }
 
+model Album {
+  id        String   @id @default(cuid())
+  name      String
+  photos    Photo[]
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model Photo {
   id        String   @id @default(cuid())
   key       String   @unique // R2 object key
@@ -15,7 +24,9 @@ model Photo {
   size      Int
   width     Int?
   height    Int?
+  album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumId   String
   createdAt DateTime @default(now())
 
-  @@index([createdAt])
+  @@index([albumId, createdAt])
 }
