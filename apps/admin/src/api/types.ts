@@ -13,6 +13,7 @@ export interface Photo {
   size: number;
   width: number | null;
   height: number | null;
+  position: number;
   createdAt: string;
   url: string;
 }

@@ -77,7 +77,16 @@
   overflow: hidden;
   border-radius: 4px;
   background: var(--tgui--secondary_bg_color);
-  animation: album-develop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* `backwards` (not `both`): a persistent end-keyframe transform would
+     override dnd-kit's inline drag transform. */
+  animation: album-develop 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  touch-action: manipulation;
+}
+
+.album__tile--dragging {
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0.92;
 }
 
 .album__tile-img {
@@ -181,10 +190,6 @@
   from {
     opacity: 0;
     transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 

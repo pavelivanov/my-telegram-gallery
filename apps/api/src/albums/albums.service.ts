@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { R2Service } from '../storage/r2.service';
 
@@ -19,7 +23,7 @@ export class AlbumsService {
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { photos: true } },
-        photos: { orderBy: { createdAt: 'desc' }, take: 1 },
+        photos: { orderBy: { position: 'asc' }, take: 1 },
       },
     });
     return Promise.all(
@@ -35,7 +39,9 @@ export class AlbumsService {
   async get(id: string) {
     const album = await this.prisma.album.findUnique({
       where: { id },
-      include: { photos: { orderBy: { createdAt: 'desc' } } },
+      include: {
+        photos: { orderBy: [{ position: 'asc' }, { createdAt: 'desc' }] },
+      },
     });
     if (!album) throw new NotFoundException();
     return {
@@ -47,5 +53,31 @@ export class AlbumsService {
         })),
       ),
     };
+  }
+
+  /** Admin: persist a manual photo order — array index becomes position. */
+  async reorder(id: string, photoIds: string[]) {
+    const photos = await this.prisma.photo.findMany({
+      where: { albumId: id },
+      select: { id: true },
+    });
+    const valid = new Set(photos.map((p) => p.id));
+    if (
+      photoIds.length !== valid.size ||
+      photoIds.some((pid) => !valid.has(pid))
+    ) {
+      throw new BadRequestException(
+        'photoIds must contain every photo of the album exactly once',
+      );
+    }
+    await this.prisma.$transaction(
+      photoIds.map((pid, index) =>
+        this.prisma.photo.update({
+          where: { id: pid },
+          data: { position: index + 1 },
+        }),
+      ),
+    );
+    return { ok: true };
   }
 }

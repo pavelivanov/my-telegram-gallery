@@ -15,6 +15,8 @@
     "predeploy": "npm run build"
   },
   "dependencies": {
+    "@dnd-kit/helpers": "^0.4.0",
+    "@dnd-kit/react": "^0.4.0",
     "@telegram-apps/telegram-ui": "^2.1.9",
     "@tma.js/sdk-react": "3.0.8",
     "eruda": "^3.4.3",

@@ -1,3 +1,6 @@
+import { move } from '@dnd-kit/helpers';
+import { DragDropProvider } from '@dnd-kit/react';
+import { useSortable } from '@dnd-kit/react/sortable';
 import {
   Button,
   Placeholder,
@@ -26,6 +29,30 @@ interface PendingUpload {
   previewUrl: string;
   status: 'uploading' | 'error';
 }
+
+// Default PointerSensor activation: long-press (250ms) on touch, short
+// drag distance on mouse — plain taps still open the photo viewer.
+const PhotoTile: FC<{
+  photo: Photo;
+  index: number;
+  onOpen: (photo: Photo) => void;
+}> = ({ photo, index, onOpen }) => {
+  const { ref, isDragging } = useSortable({ id: photo.id, index });
+
+  return (
+    <figure
+      ref={ref}
+      className={`album__tile${isDragging ? ' album__tile--dragging' : ''}`}
+      style={{ animationDelay: `${Math.min(index * 35, 420)}ms` }}
+      onClick={() => !isDragging && onOpen(photo)}
+    >
+      <img className="album__tile-img" src={photo.url} alt="" loading="lazy" />
+      <figcaption className="album__tile-num">
+        {String(index + 1).padStart(3, '0')}
+      </figcaption>
+    </figure>
+  );
+};
 
 export const AlbumPage: FC = () => {
   const { id = '' } = useParams<{ id: string }>();
@@ -107,6 +134,18 @@ export const AlbumPage: FC = () => {
     }
   };
 
+  const persistOrder = async (photos: Photo[]) => {
+    try {
+      await api(`/albums/${id}/order`, {
+        method: 'PUT',
+        body: JSON.stringify({ photoIds: photos.map((p) => p.id) }),
+      });
+    } catch (err) {
+      setError((err as Error).message);
+      load(); // roll back to the server's order
+    }
+  };
+
   const dismissFailed = (uploadId: string) => {
     setPending((p) => {
       const failed = p.find((u) => u.id === uploadId);
@@ -159,49 +198,44 @@ export const AlbumPage: FC = () => {
       {total === 0 && pending.length === 0 ? (
         <Placeholder
           header="Empty album"
-          description="Photos you upload appear here as a contact sheet."
+          description="Photos you upload appear here as a contact sheet. Long-press a photo to reorder."
         >
           <div className="album__empty-frame" aria-hidden>
             ✦
           </div>
         </Placeholder>
       ) : (
-        <div className="album__grid">
-          {pending.map((u) => (
-            <div
-              key={u.id}
-              className={`album__tile album__tile--${u.status}`}
-              onClick={u.status === 'error' ? () => dismissFailed(u.id) : undefined}
-            >
-              <img className="album__tile-img" src={u.previewUrl} alt="" />
-              <div className="album__tile-veil">
-                {u.status === 'uploading' ? (
-                  <Spinner size="s" />
-                ) : (
-                  <span className="album__tile-error">failed — tap to dismiss</span>
-                )}
+        <DragDropProvider
+          onDragEnd={(event) => {
+            if (event.canceled || !album) return;
+            const next = move(album.photos, event);
+            if (next === album.photos) return;
+            setAlbum({ ...album, photos: next });
+            persistOrder(next);
+          }}
+        >
+          <div className="album__grid">
+            {pending.map((u) => (
+              <div
+                key={u.id}
+                className={`album__tile album__tile--${u.status}`}
+                onClick={u.status === 'error' ? () => dismissFailed(u.id) : undefined}
+              >
+                <img className="album__tile-img" src={u.previewUrl} alt="" />
+                <div className="album__tile-veil">
+                  {u.status === 'uploading' ? (
+                    <Spinner size="s" />
+                  ) : (
+                    <span className="album__tile-error">failed — tap to dismiss</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          {album.photos.map((photo, i) => (
-            <figure
-              key={photo.id}
-              className="album__tile"
-              style={{ animationDelay: `${Math.min(i * 35, 420)}ms` }}
-              onClick={() => setViewer(photo)}
-            >
-              <img
-                className="album__tile-img"
-                src={photo.url}
-                alt=""
-                loading="lazy"
-              />
-              <figcaption className="album__tile-num">
-                {String(total - i).padStart(3, '0')}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
+            ))}
+            {album.photos.map((photo, i) => (
+              <PhotoTile key={photo.id} photo={photo} index={i} onOpen={setViewer} />
+            ))}
+          </div>
+        </DragDropProvider>
       )}
 
       {viewer && (

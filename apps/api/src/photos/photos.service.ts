@@ -28,7 +28,14 @@ export class PhotosService {
     width?: number;
     height?: number;
   }) {
-    const photo = await this.prisma.photo.create({ data });
+    // New photos go to the front of the album (position ascending = display order).
+    const min = await this.prisma.photo.aggregate({
+      where: { albumId: data.albumId },
+      _min: { position: true },
+    });
+    const photo = await this.prisma.photo.create({
+      data: { ...data, position: (min._min.position ?? 1) - 1 },
+    });
     return { ...photo, url: await this.r2.presignDownload(photo.key) };
   }
 

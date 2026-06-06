@@ -24,9 +24,10 @@ model Photo {
   size      Int
   width     Int?
   height    Int?
+  position  Int      @default(0) // manual sort order within the album (asc)
   album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
   albumId   String
   createdAt DateTime @default(now())
 
-  @@index([albumId, createdAt])
+  @@index([albumId, position])
 }

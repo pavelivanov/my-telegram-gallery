@@ -1,7 +1,15 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
 import { TgInitDataGuard } from '../auth/tg-init-data.guard';
-import { CreateAlbumDto } from './albums.dto';
+import { CreateAlbumDto, ReorderPhotosDto } from './albums.dto';
 import { AlbumsService } from './albums.service';
 
 @Controller('albums')
@@ -24,5 +32,11 @@ export class AlbumsController {
   @UseGuards(AdminGuard)
   create(@Body() dto: CreateAlbumDto) {
     return this.albums.create(dto.name);
+  }
+
+  @Put(':id/order')
+  @UseGuards(AdminGuard)
+  reorder(@Param('id') id: string, @Body() dto: ReorderPhotosDto) {
+    return this.albums.reorder(id, dto.photoIds);
   }
 }
