@@ -57,7 +57,7 @@ describe('Application (e2e)', () => {
       bodyParser: false,
     });
     configureApp(app);
-    await app.init();
+    await app.listen(0, '127.0.0.1');
     authorization = `tma ${createTelegramInitData({
       botToken: process.env.TELEGRAM_BOT_TOKEN!,
       user: { id: 1, first_name: 'Admin' },
@@ -332,7 +332,7 @@ describe('Tenant isolation (e2e)', () => {
       .compile();
     app = moduleRef.createNestApplication({ bodyParser: false });
     configureApp(app);
-    await app.init();
+    await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
   });
 
@@ -1058,7 +1058,7 @@ describe('Telegram Stars billing (e2e)', () => {
       .compile();
     app = moduleRef.createNestApplication({ bodyParser: false });
     configureApp(app);
-    await app.init();
+    await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
     billing = app.get(BillingService);
     ops = app.get(OpsService);
