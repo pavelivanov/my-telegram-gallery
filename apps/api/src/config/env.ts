@@ -1,6 +1,16 @@
+import { isAbsolute, resolve } from 'node:path';
+
 const DEFAULT_INIT_DATA_MAX_AGE_SECONDS = 3600;
+const DEFAULT_MEDIA_URL_TTL_SECONDS = 3600;
+const DEFAULT_UPLOAD_INTENT_TTL_SECONDS = 600;
+const DEFAULT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 const MAX_INIT_DATA_MAX_AGE_SECONDS = 86_400;
+const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 const MIN_INIT_DATA_MAX_AGE_SECONDS = 60;
+const MIN_MEDIA_SIGNING_SECRET_BYTES = 32;
+
+export type StorageDriver = 'filesystem' | 's3';
+export type StorageTransferMode = 'proxy' | 'direct';
 
 export interface AppEnvironment {
   DATABASE_URL: string;
@@ -8,10 +18,19 @@ export interface AppEnvironment {
   ADMIN_TG_IDS: string[];
   TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: number;
   WEB_ORIGINS: string[];
-  R2_ACCOUNT_ID: string;
-  R2_ACCESS_KEY_ID: string;
-  R2_SECRET_ACCESS_KEY: string;
-  R2_BUCKET: string;
+  STORAGE_DRIVER: StorageDriver;
+  STORAGE_TRANSFER_MODE: StorageTransferMode;
+  FILESYSTEM_STORAGE_PATH?: string;
+  S3_ENDPOINT?: string;
+  S3_REGION?: string;
+  S3_BUCKET?: string;
+  S3_ACCESS_KEY_ID?: string;
+  S3_SECRET_ACCESS_KEY?: string;
+  S3_FORCE_PATH_STYLE: boolean;
+  UPLOAD_MAX_BYTES: number;
+  UPLOAD_INTENT_TTL_SECONDS: number;
+  MEDIA_URL_SIGNING_SECRET: string;
+  MEDIA_URL_TTL_SECONDS: number;
 }
 
 type RawEnvironment = Record<string, unknown>;
@@ -77,32 +96,46 @@ function parseAdminIds(config: RawEnvironment, errors: string[]): string[] {
   }
 
   const unique = [...new Set(normalized)];
-  if (unique.length === 0 && errors.length === 0) {
+  if (unique.length === 0) {
     errors.push('ADMIN_TG_IDS must contain at least one Telegram ID');
   }
   return unique;
 }
 
-function parseMaxAge(config: RawEnvironment, errors: string[]): number {
-  const raw =
-    readString(config, 'TELEGRAM_INIT_DATA_MAX_AGE_SECONDS') ??
-    String(DEFAULT_INIT_DATA_MAX_AGE_SECONDS);
-
+function parseInteger(
+  config: RawEnvironment,
+  key: string,
+  defaultValue: number,
+  min: number,
+  max: number,
+  errors: string[],
+): number {
+  const raw = readString(config, key) ?? String(defaultValue);
   if (!/^\d+$/.test(raw)) {
-    errors.push('TELEGRAM_INIT_DATA_MAX_AGE_SECONDS must be an integer');
-    return DEFAULT_INIT_DATA_MAX_AGE_SECONDS;
+    errors.push(`${key} must be an integer`);
+    return defaultValue;
   }
 
   const value = Number(raw);
-  if (
-    value < MIN_INIT_DATA_MAX_AGE_SECONDS ||
-    value > MAX_INIT_DATA_MAX_AGE_SECONDS
-  ) {
-    errors.push(
-      `TELEGRAM_INIT_DATA_MAX_AGE_SECONDS must be between ${MIN_INIT_DATA_MAX_AGE_SECONDS} and ${MAX_INIT_DATA_MAX_AGE_SECONDS}`,
-    );
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    errors.push(`${key} must be between ${min} and ${max}`);
+    return defaultValue;
   }
   return value;
+}
+
+function parseBoolean(
+  config: RawEnvironment,
+  key: string,
+  defaultValue: boolean,
+  errors: string[],
+): boolean {
+  const raw = readString(config, key);
+  if (!raw) return defaultValue;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  errors.push(`${key} must be true or false`);
+  return defaultValue;
 }
 
 function parseWebOrigins(config: RawEnvironment, errors: string[]): string[] {
@@ -137,6 +170,100 @@ function parseWebOrigins(config: RawEnvironment, errors: string[]): string[] {
   return [...new Set(origins)];
 }
 
+function parseStorage(config: RawEnvironment, errors: string[]) {
+  const hasLegacyR2 = [
+    'R2_ACCOUNT_ID',
+    'R2_ACCESS_KEY_ID',
+    'R2_SECRET_ACCESS_KEY',
+    'R2_BUCKET',
+  ].some((key) => Boolean(readString(config, key)));
+  const driverRaw =
+    readString(config, 'STORAGE_DRIVER') ?? (hasLegacyR2 ? 's3' : 'filesystem');
+  const driver: StorageDriver = driverRaw === 's3' ? 's3' : 'filesystem';
+  if (!['filesystem', 's3'].includes(driverRaw)) {
+    errors.push('STORAGE_DRIVER must be filesystem or s3');
+  }
+
+  const transferRaw =
+    readString(config, 'STORAGE_TRANSFER_MODE') ??
+    (driver === 's3' ? 'direct' : 'proxy');
+  const transferMode: StorageTransferMode =
+    transferRaw === 'direct' ? 'direct' : 'proxy';
+  if (!['proxy', 'direct'].includes(transferRaw)) {
+    errors.push('STORAGE_TRANSFER_MODE must be proxy or direct');
+  }
+  if (driver === 'filesystem' && transferMode === 'direct') {
+    errors.push('filesystem storage only supports STORAGE_TRANSFER_MODE=proxy');
+  }
+
+  let filesystemPath: string | undefined;
+  let s3Endpoint: string | undefined;
+  let s3Region: string | undefined;
+  let s3Bucket: string | undefined;
+  let s3AccessKeyId: string | undefined;
+  let s3SecretAccessKey: string | undefined;
+
+  if (driver === 'filesystem') {
+    const rawPath = requireString(config, 'FILESYSTEM_STORAGE_PATH', errors);
+    if (rawPath && !isAbsolute(rawPath)) {
+      errors.push('FILESYSTEM_STORAGE_PATH must be an absolute path');
+    }
+    filesystemPath = rawPath ? resolve(rawPath) : undefined;
+  } else {
+    const r2AccountId = readString(config, 'R2_ACCOUNT_ID');
+    s3Endpoint =
+      readString(config, 'S3_ENDPOINT') ??
+      (r2AccountId
+        ? `https://${r2AccountId}.r2.cloudflarestorage.com`
+        : undefined);
+    if (s3Endpoint) {
+      try {
+        const url = new URL(s3Endpoint);
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error();
+        s3Endpoint = url.toString().replace(/\/$/, '');
+      } catch {
+        errors.push('S3_ENDPOINT must be a valid http or https URL');
+      }
+    }
+    s3Region =
+      readString(config, 'S3_REGION') ?? (r2AccountId ? 'auto' : undefined);
+    s3Bucket =
+      readString(config, 'S3_BUCKET') ?? readString(config, 'R2_BUCKET');
+    s3AccessKeyId =
+      readString(config, 'S3_ACCESS_KEY_ID') ??
+      readString(config, 'R2_ACCESS_KEY_ID');
+    s3SecretAccessKey =
+      readString(config, 'S3_SECRET_ACCESS_KEY') ??
+      readString(config, 'R2_SECRET_ACCESS_KEY');
+
+    if (!s3Region) errors.push('S3_REGION is required for s3 storage');
+    if (!s3Bucket) errors.push('S3_BUCKET is required for s3 storage');
+    if (!s3AccessKeyId) {
+      errors.push('S3_ACCESS_KEY_ID is required for s3 storage');
+    }
+    if (!s3SecretAccessKey) {
+      errors.push('S3_SECRET_ACCESS_KEY is required for s3 storage');
+    }
+  }
+
+  return {
+    STORAGE_DRIVER: driver,
+    STORAGE_TRANSFER_MODE: transferMode,
+    FILESYSTEM_STORAGE_PATH: filesystemPath,
+    S3_ENDPOINT: s3Endpoint,
+    S3_REGION: s3Region,
+    S3_BUCKET: s3Bucket,
+    S3_ACCESS_KEY_ID: s3AccessKeyId,
+    S3_SECRET_ACCESS_KEY: s3SecretAccessKey,
+    S3_FORCE_PATH_STYLE: parseBoolean(
+      config,
+      'S3_FORCE_PATH_STYLE',
+      false,
+      errors,
+    ),
+  };
+}
+
 export function validateEnv(
   config: RawEnvironment,
 ): RawEnvironment & AppEnvironment {
@@ -147,16 +274,54 @@ export function validateEnv(
   );
   const botToken = requireString(config, 'TELEGRAM_BOT_TOKEN', errors);
   const adminIds = parseAdminIds(config, errors);
-  const maxAge = parseMaxAge(config, errors);
-  const webOrigins = parseWebOrigins(config, errors);
-  const r2AccountId = requireString(config, 'R2_ACCOUNT_ID', errors);
-  const r2AccessKeyId = requireString(config, 'R2_ACCESS_KEY_ID', errors);
-  const r2SecretAccessKey = requireString(
+  const initDataMaxAge = parseInteger(
     config,
-    'R2_SECRET_ACCESS_KEY',
+    'TELEGRAM_INIT_DATA_MAX_AGE_SECONDS',
+    DEFAULT_INIT_DATA_MAX_AGE_SECONDS,
+    MIN_INIT_DATA_MAX_AGE_SECONDS,
+    MAX_INIT_DATA_MAX_AGE_SECONDS,
     errors,
   );
-  const r2Bucket = requireString(config, 'R2_BUCKET', errors);
+  const webOrigins = parseWebOrigins(config, errors);
+  const storage = parseStorage(config, errors);
+  const uploadMaxBytes = parseInteger(
+    config,
+    'UPLOAD_MAX_BYTES',
+    DEFAULT_UPLOAD_MAX_BYTES,
+    1,
+    MAX_UPLOAD_BYTES,
+    errors,
+  );
+  const uploadIntentTtl = parseInteger(
+    config,
+    'UPLOAD_INTENT_TTL_SECONDS',
+    DEFAULT_UPLOAD_INTENT_TTL_SECONDS,
+    60,
+    86_400,
+    errors,
+  );
+  const mediaSigningSecret = requireString(
+    config,
+    'MEDIA_URL_SIGNING_SECRET',
+    errors,
+  );
+  if (
+    mediaSigningSecret &&
+    Buffer.byteLength(mediaSigningSecret, 'utf8') <
+      MIN_MEDIA_SIGNING_SECRET_BYTES
+  ) {
+    errors.push(
+      `MEDIA_URL_SIGNING_SECRET must be at least ${MIN_MEDIA_SIGNING_SECRET_BYTES} bytes`,
+    );
+  }
+  const mediaUrlTtl = parseInteger(
+    config,
+    'MEDIA_URL_TTL_SECONDS',
+    DEFAULT_MEDIA_URL_TTL_SECONDS,
+    60,
+    86_400,
+    errors,
+  );
 
   if (errors.length > 0) {
     throw new Error(
@@ -169,11 +334,12 @@ export function validateEnv(
     DATABASE_URL: databaseUrl,
     TELEGRAM_BOT_TOKEN: botToken,
     ADMIN_TG_IDS: adminIds,
-    TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: maxAge,
+    TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: initDataMaxAge,
     WEB_ORIGINS: webOrigins,
-    R2_ACCOUNT_ID: r2AccountId,
-    R2_ACCESS_KEY_ID: r2AccessKeyId,
-    R2_SECRET_ACCESS_KEY: r2SecretAccessKey,
-    R2_BUCKET: r2Bucket,
+    ...storage,
+    UPLOAD_MAX_BYTES: uploadMaxBytes,
+    UPLOAD_INTENT_TTL_SECONDS: uploadIntentTtl,
+    MEDIA_URL_SIGNING_SECRET: mediaSigningSecret,
+    MEDIA_URL_TTL_SECONDS: mediaUrlTtl,
   };
 }
