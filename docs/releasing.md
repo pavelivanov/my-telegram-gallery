@@ -100,6 +100,28 @@ sanitized evidence link for each item on a newly provisioned machine:
 This checklist is intentionally open until an independent clean-machine run is
 performed; the local Compose smoke test is necessary but not a substitute.
 
+## Local platform verification
+
+After the single-platform candidate passes, a Docker builder that advertises
+both target platforms can build, scan, archive, remove, reload, and smoke each
+image independently:
+
+```bash
+RELEASE_VERSION=0.1.0-rc.1 pnpm release:platforms
+```
+
+Docker cannot load a multi-platform result into every local image store, so the
+script deliberately loops over `linux/amd64` and `linux/arm64` with one
+`buildx --load` operation per platform. It verifies native Sharp loading,
+generates a per-platform SBOM and vulnerability report, scans the saved archive
+for secrets, reloads the archive, confirms the image ID is unchanged, and runs
+Compose against that immutable ID. Evidence is written under ignored
+`output/platforms/`.
+
+An emulated pass proves the architecture-specific Prisma/Sharp artifacts can
+execute, but does not replace the independent native clean-machine acceptance
+run required before a multi-architecture support claim or registry manifest.
+
 ## Verification and publication gates
 
 Before publication, independently verify `SHA256SUMS`, load the image archive,

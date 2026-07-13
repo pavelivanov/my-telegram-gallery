@@ -7,11 +7,20 @@ TEMP_DIR="$(mktemp -d)"
 ENV_FILE="$TEMP_DIR/.env"
 IMAGE="${SMOKE_IMAGE:-my-telegram-gallery:smoke}"
 BUILD_IMAGE="${SMOKE_BUILD:-true}"
+compose_files=(--file "$ROOT_DIR/docker-compose.yml")
+if [[ -n "${SMOKE_PLATFORM:-}" ]]; then
+  if [[ ! "$SMOKE_PLATFORM" =~ ^linux/[a-z0-9_./-]+$ ]]; then
+    echo "SMOKE_PLATFORM must be a Linux Docker platform." >&2
+    exit 1
+  fi
+  export APP_PLATFORM="$SMOKE_PLATFORM"
+  compose_files+=(--file "$ROOT_DIR/compose.smoke-platform.yml")
+fi
 compose=(
   docker compose
   --project-name "$PROJECT_NAME"
   --env-file "$ENV_FILE"
-  --file "$ROOT_DIR/docker-compose.yml"
+  "${compose_files[@]}"
 )
 
 require_command() {

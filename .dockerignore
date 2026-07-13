@@ -10,6 +10,7 @@
 **/dist
 **/coverage
 **/generated
+output
 *.log
 *.png
 *.jpg
@@ -20,4 +21,5 @@ docs
 scripts
 **/README.md
 compose.test.yml
+compose.smoke-platform.yml
 docker-compose*.yml

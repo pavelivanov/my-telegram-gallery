@@ -18,14 +18,17 @@ identifiers.
 - `pnpm audit --prod` reports zero known advisories after narrow overrides for
   patched Hono, Hono Node Server, and Multer transitive versions.
 - The runtime uses the multi-platform digest for Node `24.17.0` Active LTS on
-  Alpine 3.23 and removes npm from the final image. The locally built
-  `linux/arm64` candidate passed non-root, OCI-label, native Sharp, migration,
-  readiness, liveness, and static-mount checks. This is not an amd64 test or a
-  multi-architecture support claim.
-- Syft `v1.46.0` recorded 329 library components in the local runtime image.
-  Grype `v0.115.0` reported three medium findings and zero high/critical
-  findings. Its high threshold passed. The saved image archive also produced
-  zero Gitleaks findings with archive recursion enabled.
+  Alpine 3.23 and removes npm from the final image. Locally built `linux/arm64`
+  (native) and `linux/amd64` (emulated) images passed platform, non-root,
+  OCI-label, Sharp, migration, readiness, liveness, and static-mount checks.
+  Each saved image was removed, reloaded with the same image ID, and smoked by
+  immutable ID. Independent native amd64 acceptance is still required before a
+  multi-architecture support claim or registry manifest.
+- Syft `v1.46.0` recorded 329 library components in each platform image. Grype
+  `v0.115.0` reported three medium findings and zero high/critical findings in
+  each; its high threshold passed. Both saved archives produced zero Gitleaks
+  findings with archive recursion enabled, and all per-platform checksums
+  verified after reload and smoke.
 - Production dependency metadata reports MIT, Apache-2.0, ISC,
   BSD-2-Clause, BSD-3-Clause, 0BSD, Unlicense, and LGPL-3.0-or-later entries.
 - Git history currently uses one author name/email identity. This does not prove
@@ -45,8 +48,8 @@ identifiers.
   images.
 - Enable/test private vulnerability reporting and name security, support,
   backup, abuse, and payment owners.
-- Select and verify registry, signing, provenance, and supported-architecture
-  policy.
+- Select and verify registry, signing, provenance, independent native amd64,
+  and supported-architecture policy.
 - Run clean-VM, disposable Railway, Telegram test-environment billing, restore,
   upgrade, rollback, and suspension drills.
 - Obtain explicit approval before any public repository, artifact, template,
