@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 started_postgres=0
 temporary_storage=""
+temporary_static=""
 compose=(docker compose -p my-telegram-gallery-e2e -f compose.test.yml)
 
 cleanup() {
@@ -14,6 +15,9 @@ cleanup() {
   fi
   if [[ -n "$temporary_storage" ]]; then
     rm -rf "$temporary_storage"
+  fi
+  if [[ -n "$temporary_static" ]]; then
+    rm -rf "$temporary_static"
   fi
 }
 trap cleanup EXIT
@@ -30,6 +34,9 @@ fi
 
 export DATABASE_URL="$E2E_DATABASE_URL"
 export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-123456:test-only-token}"
+export TELEGRAM_BOT_USERNAME="${TELEGRAM_BOT_USERNAME:-test_gallery_bot}"
+export TELEGRAM_ADMIN_APP_SHORT_NAME="${TELEGRAM_ADMIN_APP_SHORT_NAME:-admin_app}"
+export TELEGRAM_GALLERY_APP_SHORT_NAME="${TELEGRAM_GALLERY_APP_SHORT_NAME:-gallery_app}"
 export ADMIN_TG_IDS="${ADMIN_TG_IDS:-1,2}"
 export TELEGRAM_INIT_DATA_MAX_AGE_SECONDS="${TELEGRAM_INIT_DATA_MAX_AGE_SECONDS:-3600}"
 export STORAGE_DRIVER="${STORAGE_DRIVER:-filesystem}"
@@ -43,6 +50,13 @@ export UPLOAD_INTENT_TTL_SECONDS="${UPLOAD_INTENT_TTL_SECONDS:-600}"
 export MEDIA_URL_SIGNING_SECRET="${MEDIA_URL_SIGNING_SECRET:-test-media-signing-secret-32-bytes-long}"
 export MEDIA_URL_TTL_SECONDS="${MEDIA_URL_TTL_SECONDS:-3600}"
 export WEB_ORIGINS="${WEB_ORIGINS:-}"
+if [[ -z "${STATIC_ROOT:-}" ]]; then
+  temporary_static="$(mktemp -d)"
+  mkdir -p "$temporary_static/gallery" "$temporary_static/admin"
+  printf '<!doctype html><title>Gallery fixture</title><main>gallery-static</main>\n' > "$temporary_static/gallery/index.html"
+  printf '<!doctype html><title>Admin fixture</title><main>admin-static</main>\n' > "$temporary_static/admin/index.html"
+  export STATIC_ROOT="$temporary_static"
+fi
 export NODE_ENV="test"
 export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--experimental-vm-modules"
 

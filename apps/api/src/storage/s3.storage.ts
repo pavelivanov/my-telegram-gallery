@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -57,6 +58,10 @@ export class S3Storage implements ObjectStorage {
   ) {
     this.bucket = config.getOrThrow<string>('S3_BUCKET');
     this.client = client ?? new S3Client(createS3ClientConfig(config));
+  }
+
+  async checkReady(): Promise<void> {
+    await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
   }
 
   async put(

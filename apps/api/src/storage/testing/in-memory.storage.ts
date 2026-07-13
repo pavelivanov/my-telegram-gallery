@@ -40,6 +40,10 @@ export class InMemoryStorage implements ObjectStorage {
     };
   }
 
+  checkReady(): Promise<void> {
+    return Promise.resolve();
+  }
+
   async put(
     key: string,
     body: Readable | Buffer,

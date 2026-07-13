@@ -2,6 +2,7 @@ import { isAbsolute, resolve } from 'node:path';
 
 const DEFAULT_INIT_DATA_MAX_AGE_SECONDS = 3600;
 const DEFAULT_MEDIA_URL_TTL_SECONDS = 3600;
+const DEFAULT_READINESS_TIMEOUT_MS = 3000;
 const DEFAULT_UPLOAD_INTENT_TTL_SECONDS = 600;
 const DEFAULT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 const MAX_INIT_DATA_MAX_AGE_SECONDS = 86_400;
@@ -15,6 +16,9 @@ export type StorageTransferMode = 'proxy' | 'direct';
 export interface AppEnvironment {
   DATABASE_URL: string;
   TELEGRAM_BOT_TOKEN: string;
+  TELEGRAM_BOT_USERNAME: string;
+  TELEGRAM_ADMIN_APP_SHORT_NAME: string;
+  TELEGRAM_GALLERY_APP_SHORT_NAME: string;
   ADMIN_TG_IDS: string[];
   TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: number;
   WEB_ORIGINS: string[];
@@ -31,6 +35,8 @@ export interface AppEnvironment {
   UPLOAD_INTENT_TTL_SECONDS: number;
   MEDIA_URL_SIGNING_SECRET: string;
   MEDIA_URL_TTL_SECONDS: number;
+  READINESS_TIMEOUT_MS: number;
+  STATIC_ROOT?: string;
 }
 
 type RawEnvironment = Record<string, unknown>;
@@ -63,6 +69,46 @@ function parseDatabaseUrl(value: string, errors: string[]): string {
     errors.push('DATABASE_URL must be a valid PostgreSQL URL');
   }
   return value;
+}
+
+function parseBotUsername(config: RawEnvironment, errors: string[]): string {
+  const raw = requireString(config, 'TELEGRAM_BOT_USERNAME', errors);
+  const username = raw.replace(/^@/, '');
+  if (
+    username &&
+    (!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ||
+      !username.toLowerCase().endsWith('bot'))
+  ) {
+    errors.push(
+      'TELEGRAM_BOT_USERNAME must be a 5-32 character Telegram bot username ending in bot',
+    );
+  }
+  return username;
+}
+
+function parseAppShortName(
+  config: RawEnvironment,
+  key: 'TELEGRAM_ADMIN_APP_SHORT_NAME' | 'TELEGRAM_GALLERY_APP_SHORT_NAME',
+  errors: string[],
+): string {
+  const value = requireString(config, key, errors);
+  if (value && !/^[A-Za-z0-9_]{3,64}$/.test(value)) {
+    errors.push(`${key} must be 3-64 letters, numbers, or underscores`);
+  }
+  return value;
+}
+
+function parseStaticRoot(
+  config: RawEnvironment,
+  errors: string[],
+): string | undefined {
+  const value = readString(config, 'STATIC_ROOT');
+  if (!value) return undefined;
+  if (!isAbsolute(value)) {
+    errors.push('STATIC_ROOT must be an absolute path');
+    return undefined;
+  }
+  return resolve(value);
 }
 
 function parseAdminIds(config: RawEnvironment, errors: string[]): string[] {
@@ -273,6 +319,17 @@ export function validateEnv(
     errors,
   );
   const botToken = requireString(config, 'TELEGRAM_BOT_TOKEN', errors);
+  const botUsername = parseBotUsername(config, errors);
+  const adminAppShortName = parseAppShortName(
+    config,
+    'TELEGRAM_ADMIN_APP_SHORT_NAME',
+    errors,
+  );
+  const galleryAppShortName = parseAppShortName(
+    config,
+    'TELEGRAM_GALLERY_APP_SHORT_NAME',
+    errors,
+  );
   const adminIds = parseAdminIds(config, errors);
   const initDataMaxAge = parseInteger(
     config,
@@ -322,6 +379,15 @@ export function validateEnv(
     86_400,
     errors,
   );
+  const staticRoot = parseStaticRoot(config, errors);
+  const readinessTimeout = parseInteger(
+    config,
+    'READINESS_TIMEOUT_MS',
+    DEFAULT_READINESS_TIMEOUT_MS,
+    100,
+    30_000,
+    errors,
+  );
 
   if (errors.length > 0) {
     throw new Error(
@@ -333,6 +399,9 @@ export function validateEnv(
     ...config,
     DATABASE_URL: databaseUrl,
     TELEGRAM_BOT_TOKEN: botToken,
+    TELEGRAM_BOT_USERNAME: botUsername,
+    TELEGRAM_ADMIN_APP_SHORT_NAME: adminAppShortName,
+    TELEGRAM_GALLERY_APP_SHORT_NAME: galleryAppShortName,
     ADMIN_TG_IDS: adminIds,
     TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: initDataMaxAge,
     WEB_ORIGINS: webOrigins,
@@ -341,5 +410,7 @@ export function validateEnv(
     UPLOAD_INTENT_TTL_SECONDS: uploadIntentTtl,
     MEDIA_URL_SIGNING_SECRET: mediaSigningSecret,
     MEDIA_URL_TTL_SECONDS: mediaUrlTtl,
+    READINESS_TIMEOUT_MS: readinessTimeout,
+    STATIC_ROOT: staticRoot,
   };
 }

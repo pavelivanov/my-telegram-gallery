@@ -13,6 +13,10 @@ import {
 import { Link, useParams } from 'react-router-dom';
 
 import { api } from '@/api/client';
+import {
+  buildGalleryAlbumLink,
+  usePublicConfig,
+} from '@/api/publicConfig';
 import type { AlbumDetail, Photo } from '@/api/types';
 import { confirmPhoto, stagePhoto } from '@/api/uploads';
 import { Page } from '@/components/Page';
@@ -126,10 +130,12 @@ export const AlbumPage: FC = () => {
   const [viewer, setViewer] = useState<Photo | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const publicConfig = usePublicConfig();
 
   // Gallery deep link: t.me Mini App link with the album as start param.
-  const tmaLink = import.meta.env.VITE_GALLERY_TMA_LINK as string | undefined;
-  const shareLink = tmaLink ? `${tmaLink}?startapp=album_${id}` : null;
+  const shareLink = publicConfig
+    ? buildGalleryAlbumLink(publicConfig, id)
+    : null;
 
   const copyLink = async () => {
     if (!shareLink) return;

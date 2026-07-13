@@ -25,6 +25,7 @@ export interface StorageCapabilities {
 
 export interface ObjectStorage {
   readonly capabilities: StorageCapabilities;
+  checkReady(): Promise<void>;
   put(
     key: string,
     body: Readable | Buffer,

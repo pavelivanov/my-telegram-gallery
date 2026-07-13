@@ -6,6 +6,9 @@ function validEnvironment(overrides: Record<string, unknown> = {}) {
   return {
     DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/gallery',
     TELEGRAM_BOT_TOKEN: '123456:test-only-token',
+    TELEGRAM_BOT_USERNAME: '@test_gallery_bot',
+    TELEGRAM_ADMIN_APP_SHORT_NAME: 'admin_app',
+    TELEGRAM_GALLERY_APP_SHORT_NAME: 'gallery_app',
     ADMIN_TG_IDS: '1, 2,1',
     STORAGE_DRIVER: 'filesystem',
     STORAGE_TRANSFER_MODE: 'proxy',
@@ -32,6 +35,8 @@ describe('validateEnv', () => {
     expect(env.UPLOAD_MAX_BYTES).toBe(25 * 1024 * 1024);
     expect(env.UPLOAD_INTENT_TTL_SECONDS).toBe(600);
     expect(env.MEDIA_URL_TTL_SECONDS).toBe(3600);
+    expect(env.READINESS_TIMEOUT_MS).toBe(3000);
+    expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
   });
 
   it('supports legacy ADMIN_TG_ID', () => {
@@ -99,6 +104,16 @@ describe('validateEnv', () => {
     ['missing database', { DATABASE_URL: '' }, 'DATABASE_URL is required'],
     ['wrong database', { DATABASE_URL: 'https://example.com' }, 'postgres'],
     ['missing token', { TELEGRAM_BOT_TOKEN: '' }, 'TELEGRAM_BOT_TOKEN'],
+    [
+      'invalid bot username',
+      { TELEGRAM_BOT_USERNAME: 'gallery' },
+      'ending in bot',
+    ],
+    [
+      'invalid app short name',
+      { TELEGRAM_GALLERY_APP_SHORT_NAME: 'bad-name' },
+      'letters, numbers, or underscores',
+    ],
     ['missing admins', { ADMIN_TG_IDS: '', ADMIN_TG_ID: '' }, 'ADMIN_TG_IDS'],
     ['bad admin', { ADMIN_TG_IDS: '1,abc' }, 'non-decimal'],
     ['bad max age', { TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: '59' }, 'between 60'],
@@ -112,6 +127,7 @@ describe('validateEnv', () => {
       { FILESYSTEM_STORAGE_PATH: './media' },
       'absolute path',
     ],
+    ['relative static root', { STATIC_ROOT: './dist' }, 'absolute path'],
     [
       'filesystem direct mode',
       { STORAGE_TRANSFER_MODE: 'direct' },
@@ -123,6 +139,11 @@ describe('validateEnv', () => {
       'at least 32 bytes',
     ],
     ['invalid maximum', { UPLOAD_MAX_BYTES: '0' }, 'between 1'],
+    [
+      'invalid readiness timeout',
+      { READINESS_TIMEOUT_MS: '99' },
+      'between 100',
+    ],
   ])('rejects %s', (_name, overrides, message) => {
     expect(() => validateEnv(validEnvironment(overrides))).toThrow(message);
   });

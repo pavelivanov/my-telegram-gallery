@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { NestFactory } from '@nestjs/core';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import sharp from 'sharp';
@@ -31,16 +31,12 @@ interface AlbumDetailResponseBody {
   photos: Array<Record<string, unknown>>;
 }
 
-describe('AppController (e2e)', () => {
+describe('Application (e2e)', () => {
   let app: INestApplication<App>;
   let authorization: string;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
+    app = await NestFactory.create(AppModule, { logger: false });
     configureApp(app);
     await app.init();
     authorization = `tma ${createTelegramInitData({
@@ -49,11 +45,48 @@ describe('AppController (e2e)', () => {
     })}`;
   });
 
-  it('serves the production-prefixed health endpoint', () => {
-    return request(app.getHttpServer())
-      .get('/api/health')
+  it('serves liveness and dependency-aware readiness endpoints', async () => {
+    await request(app.getHttpServer())
+      .get('/api/health/live')
       .expect(200)
+      .expect('X-Content-Type-Options', 'nosniff')
       .expect({ status: 'ok' });
+    await request(app.getHttpServer())
+      .get('/api/health/ready')
+      .expect(200)
+      .expect({ status: 'ready' });
+  });
+
+  it('serves gallery and admin assets without swallowing API 404s', async () => {
+    await request(app.getHttpServer())
+      .get('/')
+      .expect(200)
+      .expect('X-Content-Type-Options', 'nosniff')
+      .expect(/gallery-static/);
+    await request(app.getHttpServer())
+      .get('/admin/')
+      .expect(200)
+      .expect(/admin-static/);
+    await request(app.getHttpServer())
+      .get('/api/not-found')
+      .expect(404)
+      .expect('Content-Type', /json/)
+      .expect((response) => {
+        expect(response.text).not.toContain('gallery-static');
+      });
+  });
+
+  it('returns an exact allowlist of non-secret public configuration', () => {
+    return request(app.getHttpServer())
+      .get('/api/config/public')
+      .expect(200)
+      .expect({
+        botUsername: process.env.TELEGRAM_BOT_USERNAME,
+        adminAppShortName: process.env.TELEGRAM_ADMIN_APP_SHORT_NAME,
+        galleryAppShortName: process.env.TELEGRAM_GALLERY_APP_SHORT_NAME,
+        tenancyMode: 'single',
+        uploadMaxBytes: Number(process.env.UPLOAD_MAX_BYTES),
+      });
   });
 
   it('rejects a missing Telegram authorization header', () => {

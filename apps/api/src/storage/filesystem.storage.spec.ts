@@ -44,6 +44,10 @@ describe('FilesystemStorage', () => {
     ).resolves.toBe('image');
   });
 
+  it('checks that the configured storage root is readable and writable', async () => {
+    await expect(storage.checkReady()).resolves.toBeUndefined();
+  });
+
   it('rejects traversal, malformed keys, and symlink paths', async () => {
     await expect(storage.stat('../outside')).rejects.toThrow(
       'Invalid storage key',

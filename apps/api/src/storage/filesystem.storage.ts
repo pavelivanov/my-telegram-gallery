@@ -1,5 +1,6 @@
 import { constants, createWriteStream, mkdirSync, realpathSync } from 'node:fs';
 import {
+  access,
   lstat,
   mkdir,
   open,
@@ -40,6 +41,10 @@ export class FilesystemStorage implements ObjectStorage {
   constructor(root: string) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     this.root = realpathSync(root);
+  }
+
+  async checkReady(): Promise<void> {
+    await access(this.root, constants.R_OK | constants.W_OK);
   }
 
   private resolveKey(key: string): string {

@@ -3,6 +3,10 @@ import { useEffect, useRef, useState, type FC } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { api } from '@/api/client';
+import {
+  buildGalleryAlbumLink,
+  usePublicConfig,
+} from '@/api/publicConfig';
 import type { AlbumDetail } from '@/api/types';
 import { Page } from '@/components/Page';
 import { PhotoViewer } from '@/components/PhotoViewer/PhotoViewer';
@@ -28,10 +32,12 @@ export const AlbumPage: FC = () => {
   });
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const publicConfig = usePublicConfig();
 
   // Deep link into this album (handled by StartParamRedirect on launch).
-  const tmaLink = import.meta.env.VITE_GALLERY_TMA_LINK as string | undefined;
-  const shareLink = tmaLink ? `${tmaLink}?startapp=album_${id}` : null;
+  const shareLink = publicConfig
+    ? buildGalleryAlbumLink(publicConfig, id)
+    : null;
 
   const copyLink = async () => {
     if (!shareLink) return;

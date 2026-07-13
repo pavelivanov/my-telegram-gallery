@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   PutObjectCommand,
   type S3Client,
@@ -79,6 +80,15 @@ describe('S3Storage', () => {
       ContentLength: 5,
       ContentType: 'image/png',
     });
+  });
+
+  it('checks bucket readiness without exposing the configured bucket', async () => {
+    const send = jest.fn().mockResolvedValue({});
+    const client = { send } as unknown as S3Client;
+    const storage = new S3Storage(config(), client);
+
+    await expect(storage.checkReady()).resolves.toBeUndefined();
+    expect(send).toHaveBeenCalledWith(expect.any(HeadBucketCommand));
   });
 
   it('maps missing head objects to null', async () => {
