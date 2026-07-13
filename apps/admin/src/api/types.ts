@@ -28,6 +28,8 @@ export interface AlbumDetail {
   photos: Photo[];
 }
 
+export type GalleryTheme = 'nocturne' | 'paper' | 'moss';
+
 export interface Tenant {
   name: string;
   openReportCount: number;
@@ -36,6 +38,7 @@ export interface Tenant {
   role: 'owner' | 'admin';
   slug: string;
   status: 'active' | 'suspended';
+  theme: GalleryTheme;
   usage: {
     albumCount: number;
     albumLimit: number;

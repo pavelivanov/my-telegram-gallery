@@ -27,6 +27,7 @@ const tenant: Tenant = {
   role: 'owner',
   slug: 'alpha_gallery',
   status: 'active',
+  theme: 'nocturne',
   usage: {
     albumCount: 1,
     albumLimit: 1,

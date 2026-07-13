@@ -116,6 +116,27 @@ describe('Application (e2e)', () => {
     return request(app.getHttpServer()).get('/api/albums').expect(401);
   });
 
+  it('serves and updates the bounded presentation in single mode', async () => {
+    await request(app.getHttpServer())
+      .get('/api/tenants/presentation')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect({ name: 'Default gallery', slug: 'default', theme: 'nocturne' });
+
+    await request(app.getHttpServer())
+      .put('/api/tenants/default/theme')
+      .set('Authorization', authorization)
+      .send({ theme: 'PAPER' })
+      .expect(200)
+      .expect({ theme: 'paper' });
+    await request(app.getHttpServer())
+      .put('/api/tenants/default/theme')
+      .set('Authorization', authorization)
+      .send({ theme: 'NOCTURNE' })
+      .expect(200)
+      .expect({ theme: 'nocturne' });
+  });
+
   it('rejects non-whitelisted DTO fields through the production pipe', () => {
     return request(app.getHttpServer())
       .post('/api/albums')
@@ -290,6 +311,7 @@ interface TenantResponseBody {
   role: string;
   slug: string;
   status: string;
+  theme: string;
   usage: {
     albumCount: number;
     albumLimit: number;
@@ -360,6 +382,7 @@ describe('Tenant isolation (e2e)', () => {
       role: 'owner',
       slug: 'alpha_gallery',
       status: 'active',
+      theme: 'nocturne',
     });
     expect(JSON.stringify(alphaResponse.body)).not.toContain('101');
 
@@ -557,6 +580,48 @@ describe('Tenant isolation (e2e)', () => {
           id: alphaAlbum.id,
           tenantSlug: alpha.slug,
         });
+      });
+  });
+
+  it('applies a safe gallery theme without crossing tenant boundaries', async () => {
+    await request(app.getHttpServer())
+      .put(`/api/tenants/${alpha.slug}/theme`)
+      .set('Authorization', authorization(909))
+      .send({ theme: 'PAPER' })
+      .expect(200)
+      .expect({ theme: 'paper' });
+
+    await request(app.getHttpServer())
+      .get('/api/tenants/presentation')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(200)
+      .expect({ name: alpha.name, slug: alpha.slug, theme: 'paper' });
+    await request(app.getHttpServer())
+      .get('/api/tenants/presentation')
+      .set('Authorization', authorization(303, `album_${alphaAlbum.id}`))
+      .expect(200)
+      .expect({ name: alpha.name, slug: alpha.slug, theme: 'paper' });
+
+    await request(app.getHttpServer())
+      .put(`/api/tenants/${alpha.slug}/theme`)
+      .set('Authorization', authorization(202))
+      .send({ theme: 'MOSS' })
+      .expect(404);
+    await request(app.getHttpServer())
+      .put(`/api/tenants/${alpha.slug}/theme`)
+      .set('Authorization', authorization(101))
+      .send({ theme: 'custom-css' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get('/api/tenants')
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual([
+          expect.objectContaining({ id: alpha.id, theme: 'paper' }),
+        ]);
       });
   });
 
@@ -971,8 +1036,10 @@ describe('Tenant isolation (e2e)', () => {
     const tenantContext = {
       id: alpha.id,
       mode: 'multi' as const,
+      name: alpha.name,
       slug: alpha.slug,
       status: 'ACTIVE' as const,
+      theme: 'NOCTURNE' as const,
     };
     await expect(
       photos.cleanupExpiredUploads(tenantContext, {
@@ -1013,6 +1080,14 @@ describe('Tenant isolation (e2e)', () => {
           code: 'TENANT_SUSPENDED',
           message: 'This gallery is suspended and is read-only.',
         });
+      });
+    await request(app.getHttpServer())
+      .put(`/api/tenants/${alpha.slug}/theme`)
+      .set('Authorization', authorization(101))
+      .send({ theme: 'MOSS' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'TENANT_SUSPENDED' });
       });
 
     await prisma.tenant.update({

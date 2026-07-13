@@ -1,8 +1,9 @@
 # Gallery Mini App
 
 The gallery Mini App lets Telegram users browse a tenant's albums and photos
-and submit abuse reports. Production serves it from `/` in the repository's
-single application image.
+and submit abuse reports. It resolves the tenant's name and built-in visual
+preset before rendering, including from album deep links. Production serves it
+from `/` in the repository's single application image.
 
 ## Local development
 

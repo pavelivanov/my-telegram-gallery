@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import { GalleryTheme } from '../../generated/prisma/client';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { TENANT_SLUG_PATTERN } from './tenant.constants';
 
 export class CreateTenantDto {
@@ -21,4 +28,9 @@ export class AddTenantAdminDto {
     message: 'tgUserId must be a positive decimal Telegram user ID',
   })
   tgUserId: string;
+}
+
+export class UpdateTenantThemeDto {
+  @IsEnum(GalleryTheme)
+  theme: GalleryTheme;
 }

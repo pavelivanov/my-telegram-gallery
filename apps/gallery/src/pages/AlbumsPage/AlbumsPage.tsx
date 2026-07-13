@@ -9,7 +9,8 @@ import { useGalleryWorkspace } from '@/components/GalleryWorkspace';
 import { Page } from '@/components/Page';
 
 export const AlbumsPage: FC = () => {
-  const { config, tenantKey, tenantSlug } = useGalleryWorkspace();
+  const { config, presentation, tenantKey, tenantSlug } =
+    useGalleryWorkspace();
   const [copied, setCopied] = useState(false);
   const { data: albums, error } = useQuery({
     queryKey: ['tenant', tenantKey, 'albums'],
@@ -37,7 +38,9 @@ export const AlbumsPage: FC = () => {
           the collection
         </span>
         <div className="mt-2 flex items-center justify-between gap-4">
-          <h1 className="font-display text-[34px] leading-none">Gallery</h1>
+          <h1 className="font-display text-[34px] leading-none">
+            {presentation.name}
+          </h1>
           {shareLink ? (
             <button
               type="button"
@@ -100,17 +103,17 @@ export const AlbumsPage: FC = () => {
                 )}
 
                 {/* Scrim so the title stays readable on any photo. */}
-                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-night/90 via-night/35 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-scrim/90 via-scrim/35 to-transparent" />
 
-                <span className="absolute top-3 right-4 text-[11px] font-medium tracking-[0.2em] text-ink/70">
+                <span className="absolute top-3 right-4 text-[11px] font-medium tracking-[0.2em] text-scrim-ink/70">
                   {String(i + 1).padStart(3, '0')}
                 </span>
 
                 <div className="absolute inset-x-0 bottom-0 flex items-baseline justify-between gap-3 px-4 pb-3.5">
-                  <h2 className="font-display text-[22px] leading-tight">
+                  <h2 className="font-display text-[22px] leading-tight text-scrim-ink">
                     {album.name}
                   </h2>
-                  <span className="shrink-0 text-[12px] text-ink-dim">
+                  <span className="shrink-0 text-[12px] text-scrim-dim">
                     {album.photoCount}{' '}
                     {album.photoCount === 1 ? 'photo' : 'photos'}
                   </span>

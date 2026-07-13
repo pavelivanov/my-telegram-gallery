@@ -11,10 +11,13 @@ import {
   getPublicConfig,
   type PublicConfig,
 } from '@/api/publicConfig';
+import { api } from '@/api/client';
+import type { GalleryPresentation } from '@/api/types';
 
 interface GalleryWorkspaceValue {
   config: PublicConfig;
   learnTenant: (slug: string) => void;
+  presentation: GalleryPresentation;
   tenantKey: string;
   tenantSlug: string | null;
 }
@@ -66,6 +69,8 @@ export function GalleryWorkspace({
   const launch = useMemo(() => parseStartParam(startParam), [startParam]);
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [learnedSlug, setLearnedSlug] = useState<string | null>(null);
+  const [presentation, setPresentation] =
+    useState<GalleryPresentation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,6 +87,44 @@ export function GalleryWorkspace({
     };
   }, []);
 
+  const launchNeedsTenant =
+    config?.tenancyMode === 'multi' && launch.kind === 'none';
+  const presentationSlug =
+    config?.tenancyMode === 'single'
+      ? 'default'
+      : launch.kind === 'tenant'
+        ? launch.slug
+        : null;
+
+  useEffect(() => {
+    if (!config || launchNeedsTenant) return;
+    let active = true;
+    setPresentation(null);
+    setError(null);
+    void api<GalleryPresentation>(
+      '/tenants/presentation',
+      undefined,
+      presentationSlug ?? undefined,
+    )
+      .then((value) => {
+        if (active) setPresentation(value);
+      })
+      .catch((caught: unknown) => {
+        if (active) setError((caught as Error).message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [config, launchNeedsTenant, presentationSlug]);
+
+  useEffect(() => {
+    if (!presentation) return;
+    document.documentElement.dataset.galleryTheme = presentation.theme;
+    return () => {
+      delete document.documentElement.dataset.galleryTheme;
+    };
+  }, [presentation]);
+
   if (error) {
     return (
       <main className="px-6 py-20 text-center">
@@ -90,7 +133,7 @@ export function GalleryWorkspace({
       </main>
     );
   }
-  if (!config) {
+  if (!config || (!launchNeedsTenant && !presentation)) {
     return (
       <div className="flex min-h-[100svh] items-center justify-center" aria-label="Loading">
         <span className="inline-block animate-spin font-display text-2xl text-brass [animation-duration:2.5s]">
@@ -106,11 +149,7 @@ export function GalleryWorkspace({
       : launch.kind === 'tenant'
         ? launch.slug
         : learnedSlug;
-  if (
-    config.tenancyMode === 'multi' &&
-    launch.kind !== 'album' &&
-    !tenantSlug
-  ) {
+  if (launchNeedsTenant) {
     return <NeutralLaunch />;
   }
 
@@ -121,6 +160,7 @@ export function GalleryWorkspace({
       value={{
         config,
         learnTenant: setLearnedSlug,
+        presentation: presentation!,
         tenantKey,
         tenantSlug,
       }}

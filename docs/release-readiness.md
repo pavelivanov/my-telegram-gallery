@@ -87,6 +87,12 @@ identifiers.
   cover role preservation, cross-tenant denial, owner-only controls, and
   immediate revocation. Product copy and a production-shaped Telegram client
   acceptance pass remain external gates.
+- Gallery presentation is now tenant-scoped through three server-defined visual
+  presets. Existing tenants retain Nocturne, owner/admin writes are rechecked
+  under the tenant lock, suspended tenants are immutable, and album deep links
+  resolve presentation without exposing arbitrary CSS or assets. Migration,
+  isolation, component, and local browser checks are repository gates; final
+  Telegram client contrast review remains an operator acceptance item.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.

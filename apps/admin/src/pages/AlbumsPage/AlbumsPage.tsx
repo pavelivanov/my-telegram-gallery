@@ -50,15 +50,24 @@ export const AlbumsPage: FC = () => {
           <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
             my gallery
           </span>
-          {!workspace || workspace.selected.role === 'owner' ? (
+          <div className="flex items-center gap-5">
             <button
               type="button"
               className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-dim active:text-brass"
-              onClick={() => navigate('/billing')}
+              onClick={() => navigate('/theme')}
             >
-              Plan
+              Style
             </button>
-          ) : null}
+            {!workspace || workspace.selected.role === 'owner' ? (
+              <button
+                type="button"
+                className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-dim active:text-brass"
+                onClick={() => navigate('/billing')}
+              >
+                Plan
+              </button>
+            ) : null}
+          </div>
         </div>
         <h1 className="mt-2 font-display text-[34px] font-light leading-none">
           Albums

@@ -88,8 +88,9 @@ Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reas
 - **Self-host beta**: Plans 001–003, then the self-host/legal parts of 007.
 - **Hosted private beta**: Plans 004–005 on the same image, with billing disabled.
 - **Paid SaaS beta**: Plan 006 plus the SaaS gate in 007.
-- BYO bot, public non-Telegram galleries, themes, and collaborator admins remain
-  post-launch candidates.
+- BYO bot and public non-Telegram galleries remain post-launch candidates.
+  Bounded visual themes and collaborator administrators are implemented locally
+  but still require production-shaped Telegram acceptance.
 
 ## Vetted findings
 
@@ -116,15 +117,15 @@ turns a prototype into an operable product.
    layer and tenant slugs will already exist, but it introduces a second auth/
    privacy model and much more abuse/search exposure. Design it separately after
    SaaS moderation is functioning.
-2. **Collaborator admins**: the Membership table makes this adjacent and safer
-   than adding more env IDs. Extend roles/invitations only after owner-only
-   isolation tests are stable.
+2. **Collaborator admins**: delivered as bounded numeric-ID memberships with
+   immediate revocation; invitation links and ownership transfer remain
+   separate future work.
 3. **BYO bot / white label**: potentially paid differentiation, but it requires
    encrypted-at-rest tokens, rotation, per-bot validation caching/webhooks, and
    recovery. Keep it out of the initial tenant and billing schema.
-4. **Themes**: likely the cheapest paid differentiator after tenancy because the
-   current frontends already centralize visual tokens; defer until plan/usage
-   mechanics prove demand.
+4. **Themes**: delivered as three server-validated presets shared by self-hosted
+   and hosted modes. Custom CSS, fonts, and tenant-uploaded theme assets remain
+   intentionally out of scope.
 
 ## External facts to recheck at execution time
 

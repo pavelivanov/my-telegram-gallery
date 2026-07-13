@@ -19,7 +19,7 @@ async function cleanupUploads(): Promise<void> {
       where: options.tenantSlug ? { slug: options.tenantSlug } : undefined,
       orderBy: { id: 'asc' },
       take: options.tenantSlug ? 1 : options.limit,
-      select: { id: true, slug: true, status: true },
+      select: { id: true, name: true, slug: true, status: true, theme: true },
     });
     if (options.tenantSlug && tenants.length === 0) {
       throw new Error(`Tenant not found: ${options.tenantSlug}`);

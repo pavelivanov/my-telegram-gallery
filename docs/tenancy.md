@@ -48,6 +48,20 @@ Single mode keeps its simpler trust model: every ID in `ADMIN_TG_IDS` has full
 administrative authority over the default gallery. It does not expose the Team
 screen or create membership rows.
 
+## Gallery presentation presets
+
+Both modes expose **Style** in the administrator Mini App. An owner or
+collaborator administrator can preview and select Nocturne, Paper, or Moss; a
+single-mode environment administrator can do the same for the default gallery.
+The gallery loads its safe name and preset before rendering albums, including
+when an `album_<id>` deep link resolves the tenant on the server.
+
+Presets are an application enum, not stored CSS. The API rejects arbitrary
+values, writes under the tenant lock, rechecks membership, and blocks changes
+while a tenant is suspended. This keeps hosted tenants from injecting markup,
+remote assets, fonts, or styles into another viewer's Mini App. Existing and
+migrated tenants default to Nocturne, which preserves the original appearance.
+
 ## Bootstrap a tenant owner
 
 The tenant migration intentionally creates no membership from environment
@@ -103,7 +117,8 @@ Rehearse these steps on a disposable restore before production.
    uploads, media URLs, reorder, reconciliation, and delete operations never cross;
    verify a valid viewer can read either active gallery but cannot mutate one.
 8. Add one collaborator to only the first tenant. Verify content mutations work
-   there, billing/team access fails, and revocation immediately blocks writes.
+   there, its Style selection reaches only that gallery, billing/team access
+   fails, and revocation immediately blocks writes.
 9. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
    enablement in production as separate observable steps.
 

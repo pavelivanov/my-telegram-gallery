@@ -2,8 +2,9 @@
 
 The NestJS API authenticates Telegram Mini App init data and owns tenancy,
 owner/collaborator authorization, albums, photos, storage, media delivery,
-quotas, abuse reports, operator tools, and Telegram Stars billing. PostgreSQL is
-authoritative; photo bytes use either the filesystem or S3-compatible storage.
+gallery presentation presets, quotas, abuse reports, operator tools, and
+Telegram Stars billing. PostgreSQL is authoritative; photo bytes use either
+the filesystem or S3-compatible storage.
 
 ## Local development
 

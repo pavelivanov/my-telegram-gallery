@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  GalleryTheme,
   Prisma,
   ReportStatus,
   TenantRole,
@@ -17,6 +18,7 @@ import { getPlanPolicy, PLAN_POLICY_VERSION } from '../plans/plan-policy';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotaException } from '../quota/quota.errors';
 import { QuotaService } from '../quota/quota.service';
+import { assertTenantReadable, type TenantContext } from './tenant-context';
 import {
   DEFAULT_TENANT_SLUG,
   MAX_COLLABORATOR_ADMINS,
@@ -169,6 +171,40 @@ export class TenantsService {
     return this.serialize(tenant, tenant.memberships[0]?.role);
   }
 
+  getPresentation(context: TenantContext) {
+    assertTenantReadable(context);
+    return {
+      name: context.name,
+      slug: context.slug,
+      theme: context.theme.toLowerCase(),
+    };
+  }
+
+  async updateTheme(user: TgUser, slug: string, theme: GalleryTheme) {
+    const tenant = await this.requireAdminTenant(user, slug);
+    const tgUserId = BigInt(user.id);
+
+    return this.quota.withTenantLock(
+      tenant.id,
+      async (transaction, lockedTenant) => {
+        this.quota.assertMutable(lockedTenant);
+        if (this.mode === 'multi') {
+          await this.requireAdminMembership(
+            transaction,
+            lockedTenant.id,
+            tgUserId,
+          );
+        }
+        const updated = await transaction.tenant.update({
+          where: { id: lockedTenant.id },
+          data: { theme },
+          select: { theme: true },
+        });
+        return { theme: updated.theme.toLowerCase() };
+      },
+    );
+  }
+
   async listMembers(user: TgUser, slug: string) {
     const tenant = await this.requireOwnedTenant(user, slug);
     const memberships = await this.prisma.tenantMembership.findMany({
@@ -266,6 +302,31 @@ export class TenantsService {
     return tenant;
   }
 
+  private async requireAdminTenant(user: TgUser, slug: string) {
+    if (this.mode === 'single') {
+      this.assertSingleAdmin(user);
+      if (slug !== DEFAULT_TENANT_SLUG) {
+        throw new NotFoundException('Gallery not found');
+      }
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!tenant) throw new NotFoundException('Gallery not found');
+      return tenant;
+    }
+
+    const tenant = await this.prisma.tenant.findFirst({
+      where: {
+        slug,
+        memberships: { some: { tgUserId: BigInt(user.id) } },
+      },
+      select: { id: true },
+    });
+    if (!tenant) throw new NotFoundException('Gallery not found');
+    return tenant;
+  }
+
   private async requireOwnerMembership(
     transaction: Prisma.TransactionClient,
     tenantId: string,
@@ -277,6 +338,23 @@ export class TenantsService {
     });
     if (membership?.role !== TenantRole.OWNER) {
       throw new ForbiddenException('Tenant owner access required');
+    }
+  }
+
+  private async requireAdminMembership(
+    transaction: Prisma.TransactionClient,
+    tenantId: string,
+    tgUserId: bigint,
+  ): Promise<void> {
+    const membership = await transaction.tenantMembership.findUnique({
+      where: { tenantId_tgUserId: { tenantId, tgUserId } },
+      select: { role: true },
+    });
+    if (
+      membership?.role !== TenantRole.OWNER &&
+      membership?.role !== TenantRole.ADMIN
+    ) {
+      throw new ForbiddenException('Tenant admin access required');
     }
   }
 
@@ -315,6 +393,7 @@ export class TenantsService {
       albumCount: number;
       photoCount: number;
       status: string;
+      theme: GalleryTheme;
       updatedAt: Date;
       _count?: { reports: number };
     },
@@ -328,6 +407,7 @@ export class TenantsService {
       role: (role ?? TenantRole.ADMIN).toLowerCase(),
       status: tenant.status.toLowerCase(),
       plan: tenant.plan.toLowerCase(),
+      theme: tenant.theme.toLowerCase(),
       policyVersion: PLAN_POLICY_VERSION,
       openReportCount: tenant._count?.reports ?? 0,
       usage: {

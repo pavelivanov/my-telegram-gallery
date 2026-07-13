@@ -5,14 +5,20 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import type { TgRequest } from '../auth/request-context';
+import { requireTenantContext, type TgRequest } from '../auth/request-context';
 import { TgInitDataGuard } from '../auth/tg-init-data.guard';
-import { AddTenantAdminDto, CreateTenantDto } from './tenants.dto';
 import { UseRateLimit } from '../security/rate-limit';
+import { TenantContextGuard } from './tenant-context.guard';
+import {
+  AddTenantAdminDto,
+  CreateTenantDto,
+  UpdateTenantThemeDto,
+} from './tenants.dto';
 import { TenantsService } from './tenants.service';
 
 @Controller('tenants')
@@ -25,6 +31,12 @@ export class TenantsController {
     return this.tenants.listAccessible(request.tgAuth!.user);
   }
 
+  @Get('presentation')
+  @UseGuards(TenantContextGuard)
+  presentation(@Req() request: TgRequest) {
+    return this.tenants.getPresentation(requireTenantContext(request));
+  }
+
   @Post()
   @UseRateLimit('admin')
   create(@Req() request: TgRequest, @Body() dto: CreateTenantDto) {
@@ -34,6 +46,16 @@ export class TenantsController {
   @Get(':slug')
   get(@Req() request: TgRequest, @Param('slug') slug: string) {
     return this.tenants.getAccessible(request.tgAuth!.user, slug);
+  }
+
+  @Put(':slug/theme')
+  @UseRateLimit('admin')
+  updateTheme(
+    @Req() request: TgRequest,
+    @Param('slug') slug: string,
+    @Body() dto: UpdateTenantThemeDto,
+  ) {
+    return this.tenants.updateTheme(request.tgAuth!.user, slug, dto.theme);
   }
 
   @Get(':slug/members')

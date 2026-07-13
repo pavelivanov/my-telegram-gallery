@@ -188,6 +188,8 @@ cannot inspect reporter detail or resolve reports.
 - [ ] Tenant isolation and last-byte concurrency E2E pass.
 - [ ] A staging collaborator can manage only assigned gallery content, cannot
       access billing/team controls, and loses write access after revocation.
+- [ ] Nocturne, Paper, and Moss render legibly on a staging gallery; a theme
+      change never affects another tenant and is blocked while suspended.
 - [ ] Report rate/duplicate tests and suspension smoke pass.
 - [ ] One gallery report can be listed and resolved through the operator CLI.
 - [ ] Seeded secret strings are absent from captured logs.

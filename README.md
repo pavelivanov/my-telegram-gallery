@@ -13,7 +13,9 @@ App init data is the authentication boundary. Ordinary browsers see a public
 product landing page, never gallery data. Standalone browser accounts, public
 non-Telegram galleries, ownership transfer, and bring-your-own bots are not
 supported. Multi mode supports owner-managed collaborator administrators for
-gallery content, without billing or ownership authority.
+gallery content and presentation, without billing or ownership authority.
+Every gallery can use one of three built-in visual presets; arbitrary CSS,
+fonts, and theme assets are intentionally unsupported.
 
 ## Production topology
 
@@ -132,6 +134,8 @@ Important public operational routes:
 | `GET /api/health/ready` | Bounded PostgreSQL and storage readiness |
 | `GET /api/media/tenants/:tenantId/photos/:id/:variant` | Tenant-bound signed proxy media delivery |
 | `GET/POST /api/tenants` | Accessible galleries and multi-mode onboarding |
+| `GET /api/tenants/presentation` | Active gallery name and built-in visual preset |
+| `PUT /api/tenants/:slug/theme` | Owner/admin selection of a built-in visual preset |
 | `GET/POST /api/tenants/:slug/members` | Owner-only collaborator management |
 | `DELETE /api/tenants/:slug/members/:tgUserId` | Owner-only collaborator revocation |
 | `POST /api/reports` | Rate-limited gallery abuse report intake |
@@ -141,6 +145,8 @@ Important public operational routes:
 Album and upload routes require `Authorization: tma <initDataRaw>`; mutations
 require an env administrator in single mode or the selected tenant's owner/admin
 membership in multi mode. Billing and collaborator management remain owner-only.
+Theme writes accept only the server-defined `NOCTURNE`, `PAPER`, or `MOSS`
+values and are serialized with other tenant mutations.
 Uploads use a server-created intent,
 then either a same-origin proxy PUT or presigned S3 PUT, followed by confirmation
 with the intent ID. Clients never choose or receive raw storage keys.

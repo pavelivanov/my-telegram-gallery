@@ -59,6 +59,11 @@ no membership row or role distinction is required. Multi-tenant hosting,
 owner-managed collaborator administrators, and the safe transition procedure
 are documented in [tenancy.md](tenancy.md).
 
+After the first start, open **Style** in the administrator Mini App to choose
+Nocturne, Paper, or Moss for the gallery. The selection is stored in PostgreSQL
+and therefore follows the normal database backup and restore procedure; it does
+not add files to the media volume.
+
 Then validate and start the stack:
 
 ```bash

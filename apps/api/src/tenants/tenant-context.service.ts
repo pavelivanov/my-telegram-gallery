@@ -30,8 +30,10 @@ export class TenantContextService {
       return {
         id: tenant.id,
         mode: this.mode,
+        name: tenant.name,
         slug: tenant.slug,
         status: tenant.status,
+        theme: tenant.theme,
       };
     }
 
@@ -55,8 +57,10 @@ export class TenantContextService {
       return {
         id: album.tenant.id,
         mode: this.mode,
+        name: album.tenant.name,
         slug: album.tenant.slug,
         status: album.tenant.status,
+        theme: album.tenant.theme,
       };
     }
 
@@ -72,8 +76,10 @@ export class TenantContextService {
     return {
       id: tenant.id,
       mode: this.mode,
+      name: tenant.name,
       slug: tenant.slug,
       status: tenant.status,
+      theme: tenant.theme,
     };
   }
 }

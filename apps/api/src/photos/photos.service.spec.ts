@@ -25,8 +25,10 @@ const now = new Date();
 const tenant: TenantContext = {
   id: 'tenant-1',
   mode: 'multi',
+  name: 'Tenant one',
   slug: 'tenant_one',
   status: 'ACTIVE',
+  theme: 'NOCTURNE',
 };
 const baseIntent: UploadIntent = {
   id: 'upload-1',
@@ -111,6 +113,7 @@ function setup(options: { direct?: boolean; storage?: InMemoryStorage } = {}) {
     storageReservedBytes: 0n,
     albumCount: 1,
     photoCount: 0,
+    theme: 'NOCTURNE' as const,
     createdAt: now,
     updatedAt: now,
   };

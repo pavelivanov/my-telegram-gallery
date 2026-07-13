@@ -59,8 +59,10 @@ describe('AdminGuard', () => {
       tenantContext: {
         id: 'tenant-1',
         mode: 'multi',
+        name: 'Tenant one',
         slug: 'tenant_one',
         status: 'ACTIVE',
+        theme: 'NOCTURNE',
       },
     } as Partial<TgRequest>;
 
@@ -92,8 +94,10 @@ describe('AdminGuard', () => {
         tenantContext: {
           id: 'tenant-1',
           mode: 'multi',
+          name: 'Tenant one',
           slug: 'tenant_one',
           status: 'ACTIVE',
+          theme: 'NOCTURNE',
         },
       } as Partial<TgRequest>;
 

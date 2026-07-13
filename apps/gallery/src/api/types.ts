@@ -1,3 +1,11 @@
+export type GalleryTheme = 'nocturne' | 'paper' | 'moss';
+
+export interface GalleryPresentation {
+  name: string;
+  slug: string;
+  theme: GalleryTheme;
+}
+
 export interface Album {
   id: string;
   name: string;

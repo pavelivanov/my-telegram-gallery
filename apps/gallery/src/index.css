@@ -11,6 +11,9 @@
   --color-ink: #f2ede3;
   --color-ink-dim: #9a917e;
   --color-brass: #c9a35c;
+  --color-scrim: #0e0c09;
+  --color-scrim-ink: #f2ede3;
+  --color-scrim-dim: #b8ad98;
 
   --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-fade: fade 0.4s ease both;
@@ -36,8 +39,27 @@
   }
 }
 
+:root[data-gallery-theme='paper'] {
+  --color-night: #eee7dc;
+  --color-card: #f8f4ed;
+  --color-line: #d2c7b8;
+  --color-ink: #211d18;
+  --color-ink-dim: #756d62;
+  --color-brass: #9a632e;
+}
+
+:root[data-gallery-theme='moss'] {
+  --color-night: #0f1612;
+  --color-card: #18221b;
+  --color-line: #29382d;
+  --color-ink: #edf0e8;
+  --color-ink-dim: #98a295;
+  --color-brass: #aeb974;
+}
+
 html {
   background: var(--color-night);
+  transition: background-color 220ms ease;
 }
 
 body {
@@ -54,6 +76,9 @@ body {
   color: var(--color-ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 220ms ease,
+    color 220ms ease;
 }
 
 /* Hide scrollbars inside the fullscreen viewer track. */
