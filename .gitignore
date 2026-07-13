@@ -9,6 +9,7 @@ build/
 .env
 .env.*
 !.env.example
+!.env.selfhost.example
 
 # prisma
 apps/api/generated/
