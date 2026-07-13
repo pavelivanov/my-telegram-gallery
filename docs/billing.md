@@ -18,6 +18,12 @@ The implementation currently targets Bot API 10.1: `XTR`, one price line,
 within 10 seconds, and authoritative recurring expiration dates. The Stars
 invoice deliberately omits `provider_token`.
 
+Pre-checkout processing reserves no more than 500 ms for the checkout lookup,
+2.25 seconds for connection acquisition and tenant-locked validation, and 4
+seconds for the Bot API reply. PostgreSQL row-lock wait is capped separately.
+If validation exceeds its budget, the purchase is declined with a retry-safe
+message instead of risking a late approval.
+
 ## Enable a disposable test installation
 
 Use a bot and Telegram account created in Telegram's test environment. Test and

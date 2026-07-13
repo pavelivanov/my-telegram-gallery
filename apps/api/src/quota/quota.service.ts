@@ -6,6 +6,12 @@ import { QuotaException } from './quota.errors';
 
 type QuotaTransaction = Prisma.TransactionClient;
 
+interface TenantLockOptions {
+  lockTimeoutMs?: number;
+  maxWaitMs?: number;
+  timeoutMs?: number;
+}
+
 @Injectable()
 export class QuotaService {
   constructor(private readonly prisma: PrismaService) {}
@@ -13,10 +19,15 @@ export class QuotaService {
   async withTenantLock<T>(
     tenantId: string,
     work: (transaction: QuotaTransaction, tenant: Tenant) => Promise<T>,
-    options: { timeoutMs?: number } = {},
+    options: TenantLockOptions = {},
   ): Promise<T> {
     return this.prisma.$transaction(
       async (transaction) => {
+        if (options.lockTimeoutMs !== undefined) {
+          await transaction.$queryRaw<Array<{ set_config: string }>>(
+            Prisma.sql`SELECT set_config('lock_timeout', ${`${options.lockTimeoutMs}ms`}, true)`,
+          );
+        }
         const locked = await transaction.$queryRaw<Array<{ id: string }>>(
           Prisma.sql`SELECT "id" FROM "Tenant" WHERE "id" = ${tenantId} FOR UPDATE`,
         );
@@ -28,7 +39,10 @@ export class QuotaService {
         if (!tenant) throw new NotFoundException('Tenant not found');
         return work(transaction, tenant);
       },
-      { timeout: options.timeoutMs ?? 5000 },
+      {
+        maxWait: options.maxWaitMs,
+        timeout: options.timeoutMs ?? 5000,
+      },
     );
   }
 

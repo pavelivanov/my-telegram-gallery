@@ -11,10 +11,9 @@ Apps React template. Their upstream MIT license and copyright notice remain at:
 - [`apps/admin/LICENSE`](apps/admin/LICENSE)
 - [`apps/gallery/LICENSE`](apps/gallery/LICENSE)
 
-The template documentation images under `apps/admin/assets`,
-`apps/admin/.github`, `apps/gallery/assets`, and `apps/gallery/.github` remain
-in the repository. Their exact provenance and publication need owner review
-before a public release; they are not copied into the production image.
+The unused template documentation images and nested GitHub Pages workflows were
+removed before release. No template screenshots are copied into the production
+image. The upstream MIT license files remain with both derived packages.
 
 ## Runtime dependencies
 

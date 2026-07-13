@@ -50,16 +50,23 @@ export class TelegramApiService {
     });
   }
 
-  answerPreCheckoutQuery(input: {
-    id: string;
-    ok: boolean;
-    errorMessage?: string;
-  }): Promise<boolean> {
-    return this.call<boolean>('answerPreCheckoutQuery', {
-      pre_checkout_query_id: input.id,
-      ok: input.ok,
-      ...(input.ok ? {} : { error_message: input.errorMessage }),
-    });
+  answerPreCheckoutQuery(
+    input: {
+      id: string;
+      ok: boolean;
+      errorMessage?: string;
+    },
+    options: { timeoutMs?: number } = {},
+  ): Promise<boolean> {
+    return this.call<boolean>(
+      'answerPreCheckoutQuery',
+      {
+        pre_checkout_query_id: input.id,
+        ok: input.ok,
+        ...(input.ok ? {} : { error_message: input.errorMessage }),
+      },
+      options.timeoutMs,
+    );
   }
 
   editUserStarSubscription(input: {
@@ -110,7 +117,12 @@ export class TelegramApiService {
   private async call<T>(
     method: string,
     body: Record<string, unknown>,
+    timeoutOverrideMs?: number,
   ): Promise<T> {
+    const timeoutMs = Math.min(
+      this.timeoutMs,
+      timeoutOverrideMs ?? this.timeoutMs,
+    );
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/${method}`, {
@@ -118,7 +130,7 @@ export class TelegramApiService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
         redirect: 'error',
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       throw new TelegramApiError(method, true);

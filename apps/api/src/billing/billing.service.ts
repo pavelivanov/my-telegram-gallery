@@ -37,6 +37,40 @@ import {
 import { EntitlementService } from './entitlement.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Telegram allows 10 seconds from query creation. Keep the app-side worst case
+// below 6.75 seconds so inbound webhook and scheduling latency have headroom.
+const PRECHECKOUT_LOOKUP_TIMEOUT_MS = 500;
+const PRECHECKOUT_LOCK_TIMEOUT_MS = 1250;
+const PRECHECKOUT_TRANSACTION_MAX_WAIT_MS = 250;
+const PRECHECKOUT_TRANSACTION_TIMEOUT_MS = 1750;
+const PRECHECKOUT_TRANSACTION_WATCHDOG_MS = 2250;
+const PRECHECKOUT_TELEGRAM_TIMEOUT_MS = 4000;
+
+class PreCheckoutDeadlineError extends Error {
+  constructor() {
+    super('pre-checkout deadline exceeded');
+    this.name = 'PreCheckoutDeadlineError';
+  }
+}
+
+async function withPreCheckoutDeadline<T>(
+  work: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(
+      () => reject(new PreCheckoutDeadlineError()),
+      timeoutMs,
+    );
+    timeout.unref?.();
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 interface BillingRuntimeConfig {
   priceStars: number;
@@ -265,82 +299,103 @@ export class BillingService {
       ) {
         throw new PermanentBillingEventError('invalid pre-checkout amount');
       }
-      const located = await this.prisma.billingCheckout.findUnique({
-        where: { id: payload },
-        select: { tenantId: true },
-      });
+      const located = await withPreCheckoutDeadline(
+        this.prisma.billingCheckout.findUnique({
+          where: { id: payload },
+          select: { tenantId: true },
+        }),
+        PRECHECKOUT_LOOKUP_TIMEOUT_MS,
+      );
       if (!located) {
         throw new PermanentBillingEventError('checkout not found');
       }
-      await this.quota.withTenantLock(
-        located.tenantId,
-        async (transaction, tenant) => {
-          const loaded = await transaction.billingCheckout.findUnique({
-            where: { id: payload },
-          });
-          if (!loaded) {
-            throw new PermanentBillingEventError('checkout not found');
-          }
-          if (
-            (loaded.status !== BillingCheckoutStatus.PENDING &&
-              loaded.status !== BillingCheckoutStatus.PRECHECKOUT_APPROVED) ||
-            loaded.expiresAt <= new Date() ||
-            (loaded.preCheckoutQueryId !== null &&
-              loaded.preCheckoutQueryId !== queryId)
-          ) {
-            throw new PermanentBillingEventError('checkout expired or closed');
-          }
-          assertPaymentMatchesCheckout(loaded, {
-            amountStars: query.total_amount,
-            currency: query.currency,
-            payerTgUserId,
-          });
-          if (tenant.status !== TenantStatus.ACTIVE) {
-            throw new PermanentBillingEventError('tenant is not active');
-          }
-          try {
-            await this.access.assertOwner(
-              transaction,
-              tenant.id,
+      await withPreCheckoutDeadline(
+        this.quota.withTenantLock(
+          located.tenantId,
+          async (transaction, tenant) => {
+            const loaded = await transaction.billingCheckout.findUnique({
+              where: { id: payload },
+            });
+            if (!loaded) {
+              throw new PermanentBillingEventError('checkout not found');
+            }
+            if (
+              (loaded.status !== BillingCheckoutStatus.PENDING &&
+                loaded.status !== BillingCheckoutStatus.PRECHECKOUT_APPROVED) ||
+              loaded.expiresAt <= new Date() ||
+              (loaded.preCheckoutQueryId !== null &&
+                loaded.preCheckoutQueryId !== queryId)
+            ) {
+              throw new PermanentBillingEventError(
+                'checkout expired or closed',
+              );
+            }
+            assertPaymentMatchesCheckout(loaded, {
+              amountStars: query.total_amount,
+              currency: query.currency,
               payerTgUserId,
-            );
-          } catch {
-            throw new PermanentBillingEventError('payer is not tenant owner');
-          }
-          const subscription = await transaction.subscription.findUnique({
-            where: { tenantId: tenant.id },
-          });
-          if (
-            subscription &&
-            this.subscriptionStillEntitled(subscription, new Date())
-          ) {
-            throw new PermanentBillingEventError(
-              'tenant already has active subscription',
-            );
-          }
-          return transaction.billingCheckout.update({
-            where: { id: loaded.id },
-            data: {
-              status: BillingCheckoutStatus.PRECHECKOUT_APPROVED,
-              preCheckoutQueryId: queryId,
-              preCheckoutApprovedAt: new Date(),
-            },
-          });
-        },
+            });
+            if (tenant.status !== TenantStatus.ACTIVE) {
+              throw new PermanentBillingEventError('tenant is not active');
+            }
+            try {
+              await this.access.assertOwner(
+                transaction,
+                tenant.id,
+                payerTgUserId,
+              );
+            } catch {
+              throw new PermanentBillingEventError('payer is not tenant owner');
+            }
+            const subscription = await transaction.subscription.findUnique({
+              where: { tenantId: tenant.id },
+            });
+            if (
+              subscription &&
+              this.subscriptionStillEntitled(subscription, new Date())
+            ) {
+              throw new PermanentBillingEventError(
+                'tenant already has active subscription',
+              );
+            }
+            return transaction.billingCheckout.update({
+              where: { id: loaded.id },
+              data: {
+                status: BillingCheckoutStatus.PRECHECKOUT_APPROVED,
+                preCheckoutQueryId: queryId,
+                preCheckoutApprovedAt: new Date(),
+              },
+            });
+          },
+          {
+            lockTimeoutMs: PRECHECKOUT_LOCK_TIMEOUT_MS,
+            maxWaitMs: PRECHECKOUT_TRANSACTION_MAX_WAIT_MS,
+            timeoutMs: PRECHECKOUT_TRANSACTION_TIMEOUT_MS,
+          },
+        ),
+        PRECHECKOUT_TRANSACTION_WATCHDOG_MS,
       );
     } catch (error) {
       rejection =
         error instanceof PermanentBillingEventError
           ? error
-          : new PermanentBillingEventError('invalid pre-checkout event');
+          : error instanceof PreCheckoutDeadlineError
+            ? new PermanentBillingEventError(
+                error.message,
+                'Checkout verification took too long. Please try again.',
+              )
+            : new PermanentBillingEventError('invalid pre-checkout event');
     }
 
     try {
-      await this.telegram.answerPreCheckoutQuery({
-        id: queryId,
-        ok: !rejection,
-        errorMessage: rejection?.userMessage,
-      });
+      await this.telegram.answerPreCheckoutQuery(
+        {
+          id: queryId,
+          ok: !rejection,
+          errorMessage: rejection?.userMessage,
+        },
+        { timeoutMs: PRECHECKOUT_TELEGRAM_TIMEOUT_MS },
+      );
     } catch (error) {
       if (error instanceof TelegramApiError && !error.retryable) {
         if (!rejection && typeof query?.invoice_payload === 'string') {

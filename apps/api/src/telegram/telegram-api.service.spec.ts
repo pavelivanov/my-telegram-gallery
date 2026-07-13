@@ -118,4 +118,18 @@ describe('TelegramApiService', () => {
       service().answerPreCheckoutQuery({ id: 'pre_3', ok: true }),
     ).rejects.toMatchObject<TelegramApiError>({ retryable: true });
   });
+
+  it('uses a shorter per-call deadline for pre-checkout replies', async () => {
+    const timeout = jest.spyOn(AbortSignal, 'timeout');
+    jest.spyOn(global, 'fetch').mockResolvedValue(successful(true));
+
+    await expect(
+      service().answerPreCheckoutQuery(
+        { id: 'pre_4', ok: true },
+        { timeoutMs: 250 },
+      ),
+    ).resolves.toBe(true);
+
+    expect(timeout).toHaveBeenLastCalledWith(250);
+  });
 });
