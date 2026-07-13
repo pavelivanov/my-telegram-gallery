@@ -5,6 +5,7 @@ export interface Album {
   photoCount: number;
   coverUrl: string | null;
   coverThumbUrl: string | null;
+  tenantSlug: string;
 }
 
 export interface Photo {
@@ -23,5 +24,13 @@ export interface AlbumDetail {
   id: string;
   name: string;
   createdAt: string;
+  tenantSlug: string;
   photos: Photo[];
+}
+
+export interface Tenant {
+  name: string;
+  plan: string;
+  slug: string;
+  status: 'active' | 'suspended';
 }

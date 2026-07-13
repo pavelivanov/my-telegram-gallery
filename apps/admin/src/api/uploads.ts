@@ -1,5 +1,5 @@
 import { retrieveRawInitData } from '@tma.js/sdk-react';
-import { api, apiUrl } from './client';
+import { api, apiUrl, getSelectedTenantSlug } from './client';
 import type { Photo } from './types';
 
 export interface StagedUpload {
@@ -24,12 +24,16 @@ export async function stagePhoto(
     body: JSON.stringify({ albumId, contentType, size: file.size }),
   });
   const isProxyUpload = intent.uploadUrl.startsWith('/');
+  const tenantSlug = getSelectedTenantSlug();
   const put = await fetch(apiUrl(intent.uploadUrl), {
     method: intent.uploadMethod,
     headers: {
       'Content-Type': contentType,
       ...(isProxyUpload
-        ? { Authorization: `tma ${retrieveRawInitData()}` }
+        ? {
+            Authorization: `tma ${retrieveRawInitData()}`,
+            ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
+          }
         : {}),
     },
     body: file,

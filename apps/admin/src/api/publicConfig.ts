@@ -5,7 +5,7 @@ export interface PublicConfig {
   botUsername: string;
   adminAppShortName: string;
   galleryAppShortName: string;
-  tenancyMode: 'single';
+  tenancyMode: 'single' | 'multi';
   uploadMaxBytes: number;
 }
 
@@ -49,5 +49,16 @@ export function buildGalleryAlbumLink(
     `https://t.me/${config.botUsername}/${config.galleryAppShortName}`,
   );
   link.searchParams.set('startapp', `album_${albumId}`);
+  return link.toString();
+}
+
+export function buildGalleryHomeLink(
+  config: PublicConfig,
+  tenantSlug: string,
+): string {
+  const link = new URL(
+    `https://t.me/${config.botUsername}/${config.galleryAppShortName}`,
+  );
+  link.searchParams.set('startapp', `tenant_${tenantSlug}`);
   return link.toString();
 }

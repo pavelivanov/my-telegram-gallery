@@ -27,6 +27,7 @@ if (import.meta.env.DEV) {
       : new URLSearchParams([
         ['auth_date', Math.floor(Date.now() / 1000).toString()],
         ['hash', '0'.repeat(64)],
+        ['signature', ''],
         ['user', JSON.stringify({ id: 1, first_name: 'Development user' })],
       ]).toString();
 
@@ -52,16 +53,14 @@ if (import.meta.env.DEV) {
           return emitEvent('safe_area_changed', noInsets);
         }
       },
-      launchParams: new URLSearchParams([
-        // Discover more launch parameters:
-        // https://docs.telegram-mini-apps.com/platform/launch-parameters#parameters-list
-        ['tgWebAppThemeParams', JSON.stringify(themeParams)],
+      launchParams: {
+        tgWebAppThemeParams: themeParams,
         // Set VITE_MOCK_INIT_DATA to a fresh, test-only signed value when the
         // local UI needs to call the API. Never expose the bot token to Vite.
-        ['tgWebAppData', mockInitData],
-        ['tgWebAppVersion', '8.4'],
-        ['tgWebAppPlatform', 'tdesktop'],
-      ]),
+        tgWebAppData: new URLSearchParams(mockInitData),
+        tgWebAppVersion: '8',
+        tgWebAppPlatform: 'tdesktop',
+      },
     });
 
     console.info(
