@@ -7,6 +7,11 @@ on:
         description: Non-production candidate version, for example 0.1.0-rc.1
         required: true
         type: string
+      verify_native_platforms:
+        description: Build, scan, archive, reload, and smoke on native amd64 and arm64 runners
+        default: true
+        required: true
+        type: boolean
 
 permissions:
   contents: read
@@ -37,6 +42,41 @@ jobs:
         with:
           name: my-telegram-gallery-${{ inputs.version }}-${{ github.sha }}
           path: output/release/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+
+  native-platforms:
+    if: ${{ inputs.verify_native_platforms }}
+    needs: candidate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    name: Native ${{ matrix.architecture }} candidate
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build, scan, reload, and smoke the native image
+        env:
+          RELEASE_PLATFORMS: linux/${{ matrix.architecture }}
+          RELEASE_REQUIRE_NATIVE: "true"
+          RELEASE_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: bash scripts/verify-release-platforms.sh
+      - name: Upload private native-platform evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: my-telegram-gallery-${{ inputs.version }}-${{ github.sha }}-${{ matrix.architecture }}
+          path: output/platforms/${{ matrix.architecture }}/
           compression-level: 0
           if-no-files-found: error
           retention-days: 7

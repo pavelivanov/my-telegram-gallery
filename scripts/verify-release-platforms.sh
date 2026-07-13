@@ -8,6 +8,7 @@ GITLEAKS_IMAGE="zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16
 SYFT_IMAGE="anchore/syft:v1.46.0@sha256:473a60e3a58e29aca3aedb3e99e787bb4ef273917e44d10fcbea4330a07320bb"
 GRYPE_IMAGE="anchore/grype:v0.115.0@sha256:decd87500a90c1e4faa1706f77b0b2cbc1d2f9364e976f1898ce9037de09cc3a"
 PLATFORMS_CSV="${RELEASE_PLATFORMS:-linux/amd64,linux/arm64}"
+REQUIRE_NATIVE="${RELEASE_REQUIRE_NATIVE:-false}"
 VERSION="${RELEASE_VERSION:-0.0.0-platform-test}"
 OUTPUT_DIR="$ROOT_DIR/output/platforms"
 
@@ -28,6 +29,10 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 if [[ ! "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]; then
   echo "RELEASE_VERSION contains unsupported characters." >&2
+  exit 1
+fi
+if [[ "$REQUIRE_NATIVE" != "true" && "$REQUIRE_NATIVE" != "false" ]]; then
+  echo "RELEASE_REQUIRE_NATIVE must be true or false." >&2
   exit 1
 fi
 
@@ -68,6 +73,10 @@ for platform in "${platforms[@]}"; do
   esac
 
   architecture="${platform#linux/}"
+  if [[ "$REQUIRE_NATIVE" == "true" && "$architecture" != "$HOST_ARCHITECTURE" ]]; then
+    echo "Native verification requires host architecture $architecture; Docker reports $HOST_ARCHITECTURE." >&2
+    exit 1
+  fi
   image="my-telegram-gallery:platform-$architecture"
   platform_output="$OUTPUT_DIR/$architecture"
   mkdir -p "$platform_output"

@@ -27,7 +27,8 @@
     "telegram:webhook": "pnpm --filter api build && pnpm --filter api telegram:webhook",
     "ops": "pnpm --filter api build && pnpm --filter api ops",
     "release:candidate": "bash scripts/release-candidate.sh",
-    "release:platforms": "bash scripts/verify-release-platforms.sh"
+    "release:platforms": "bash scripts/verify-release-platforms.sh",
+    "release:verify": "bash scripts/verify-release-evidence.sh"
   },
   "engines": {
     "node": ">=24"

@@ -158,6 +158,8 @@ Maintainers can create a private, checksummed image archive, license inventory,
 SBOM, and vulnerability report by following
 [the release-candidate procedure](docs/releasing.md). Release evidence and open
 human gates are tracked in [docs/release-readiness.md](docs/release-readiness.md).
+Downloaded private evidence can be rechecked and smoke-tested with
+`pnpm release:verify -- EVIDENCE_DIRECTORY`; this does not publish the image.
 
 ## Deployment policy
 

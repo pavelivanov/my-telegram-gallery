@@ -45,17 +45,30 @@ identifiers.
 - Upstream frontend MIT notices are byte-identical and remain in both app
   directories.
 
+## Prepared controls awaiting external execution
+
+- The private manual candidate workflow now has optional native amd64 and arm64
+  jobs. They build, scan, archive, reload, and smoke independently on exact
+  Ubuntu 24.04 runner labels, then retain each evidence set privately for seven
+  days. It has no package-write, attestation, or identity-token permission.
+- `pnpm release:verify -- EVIDENCE_DIRECTORY` independently checks transferred
+  checksums, local provenance, scan reports, image identity/labels, secret
+  guards, Sharp, and the Compose smoke. It intentionally does not claim signing
+  or publisher identity.
+- Unused inherited template screenshots and nested GitHub Pages workflows were
+  removed. The upstream MIT license files remain; there is no longer a template
+  documentation-image publication blocker.
+
 ## Open human/external blockers
 
 - Choose and review the root license and contributor-rights strategy.
 - Confirm original-code and screenshot ownership, including employer/client
   rights.
-- Confirm provenance/publication rights for retained template documentation
-  images.
 - Enable/test private vulnerability reporting and name security, support,
   backup, abuse, and payment owners.
-- Select and verify registry, signing, provenance, independent native amd64,
-  and supported-architecture policy.
+- Select and verify registry, signing, trusted provenance, and
+  supported-architecture policy; execute the prepared native workflow and an
+  independent reviewer-led acceptance run.
 - Run clean-VM, disposable Railway, Telegram test-environment billing, restore,
   upgrade, rollback, and suspension drills.
 - Obtain explicit approval before any public repository, artifact, template,

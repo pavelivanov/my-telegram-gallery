@@ -45,8 +45,14 @@ The candidate command:
    ignored `output/release/`.
 
 The manual GitHub workflow performs the same source gate and uploads the output
-as a private seven-day artifact. It has read-only repository permissions and no
-package, attestation, or identity-token permission.
+as a private seven-day artifact. By default, after that gate passes, it also
+runs the platform verifier separately on native `ubuntu-24.04` amd64 and
+`ubuntu-24.04-arm` arm64 hosted runners and uploads each evidence directory.
+The native jobs set `RELEASE_REQUIRE_NATIVE=true`, so a runner-architecture
+mismatch fails instead of silently falling back to emulation. They can be
+disabled for a faster candidate-only rehearsal. Every job has read-only
+repository permissions and no package, attestation, or identity-token
+permission, so this workflow cannot publish or sign a release.
 
 ## Local release build type v1
 
@@ -163,9 +169,28 @@ argument instead. This detects artifact or metadata drift, but an unsigned
 statement can still be replaced together with its checksum file; trusted
 identity verification requires the later approved signing flow.
 
+The repository also provides one end-to-end verifier for a downloaded candidate
+or per-platform evidence directory:
+
+```bash
+pnpm release:verify -- output/release
+pnpm release:verify -- output/platforms/amd64
+```
+
+Run it only on an isolated machine and evidence from reviewed source: it loads
+and executes the image. The verifier checks every recorded checksum, local
+provenance fields, empty secret report, CycloneDX structure, absence of
+high/critical scan findings, gzip integrity, image ID/platform/non-root user,
+OCI revision/source/version labels, runtime environment-file/default-secret
+guards, native or emulated Sharp execution, and the full disposable Compose
+smoke. A successful run is stronger transfer evidence, but it does not turn the
+unsigned local statement into trusted publisher provenance.
+
 An emulated pass proves the architecture-specific Prisma/Sharp artifacts can
-execute, but does not replace the independent native clean-machine acceptance
-run required before a multi-architecture support claim or registry manifest.
+execute. A successful native GitHub matrix run adds clean hosted-runner
+evidence, but neither replaces the independent reviewer-led clean-machine
+acceptance required before a multi-architecture support claim or registry
+manifest.
 
 ## Verification and publication gates
 
