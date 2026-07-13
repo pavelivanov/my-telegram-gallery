@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
 import type { Album } from '@/api/types';
 import { Page } from '@/components/Page';
+import { useTenantWorkspace } from '@/components/TenantWorkspace';
 import { Button, Placeholder, Spinner } from '@/components/Ui';
 
 export const AlbumsPage: FC = () => {
   const navigate = useNavigate();
+  const workspace = useTenantWorkspace();
   const [albums, setAlbums] = useState<Album[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -48,13 +50,15 @@ export const AlbumsPage: FC = () => {
           <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
             my gallery
           </span>
-          <button
-            type="button"
-            className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-dim active:text-brass"
-            onClick={() => navigate('/billing')}
-          >
-            Plan
-          </button>
+          {!workspace || workspace.selected.role === 'owner' ? (
+            <button
+              type="button"
+              className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-dim active:text-brass"
+              onClick={() => navigate('/billing')}
+            >
+              Plan
+            </button>
+          ) : null}
         </div>
         <h1 className="mt-2 font-display text-[34px] font-light leading-none">
           Albums

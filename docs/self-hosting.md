@@ -55,8 +55,9 @@ Edit `.env` and provide at least:
 
 Keep `TENANCY_MODE=single` for the normal self-hosted setup. In this mode the
 configured administrator IDs manage the automatically created default gallery;
-no membership row is required. Multi-tenant hosting and the safe transition
-procedure are documented in [tenancy.md](tenancy.md).
+no membership row or role distinction is required. Multi-tenant hosting,
+owner-managed collaborator administrators, and the safe transition procedure
+are documented in [tenancy.md](tenancy.md).
 
 Then validate and start the stack:
 

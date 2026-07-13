@@ -186,6 +186,8 @@ cannot inspect reporter detail or resolve reports.
 - [ ] `usage-reconcile --dry-run` reports zero drift for every launch tenant.
 - [ ] Cleanup apply followed by a second apply reports zero candidates.
 - [ ] Tenant isolation and last-byte concurrency E2E pass.
+- [ ] A staging collaborator can manage only assigned gallery content, cannot
+      access billing/team controls, and loses write access after revocation.
 - [ ] Report rate/duplicate tests and suspension smoke pass.
 - [ ] One gallery report can be listed and resolved through the operator CLI.
 - [ ] Seeded secret strings are absent from captured logs.

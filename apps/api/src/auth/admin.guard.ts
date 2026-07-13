@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { QuotaException } from '../quota/quota.errors';
 import type { TgRequest } from './request-context';
 
-/** Uses the env allowlist in single mode and owner memberships in multi mode. */
+/** Uses the env allowlist in single mode and admin memberships in multi mode. */
 @Injectable()
 export class AdminGuard implements CanActivate {
   private readonly adminIds: readonly string[];
@@ -49,8 +49,11 @@ export class AdminGuard implements CanActivate {
         },
       },
     });
-    if (!membership || membership.role !== TenantRole.OWNER) {
-      throw new ForbiddenException('Tenant owner access required');
+    if (
+      !membership ||
+      ![TenantRole.OWNER, TenantRole.ADMIN].includes(membership.role)
+    ) {
+      throw new ForbiddenException('Tenant administrator access required');
     }
     if (tenant.status !== 'ACTIVE') {
       throw new QuotaException('TENANT_SUSPENDED');

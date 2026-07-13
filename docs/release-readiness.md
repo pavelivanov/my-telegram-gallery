@@ -81,6 +81,12 @@ identifiers.
   capture, strips request/identity data, and reuses configured-secret redaction.
   No external project was contacted during local verification; staging delivery,
   retention, and scrubbed-event inspection remain operator acceptance gates.
+- Multi-mode owners can now delegate content administration to bounded numeric
+  Telegram identities and revoke it without transferring billing, team, or
+  ownership authority. The populated migration rehearsal and isolation E2E
+  cover role preservation, cross-tenant denial, owner-only controls, and
+  immediate revocation. Product copy and a production-shaped Telegram client
+  acceptance pass remain external gates.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.

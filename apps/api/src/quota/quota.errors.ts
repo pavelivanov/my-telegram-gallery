@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 
 export type QuotaErrorCode =
+  | 'QUOTA_ADMINS'
   | 'QUOTA_ALBUMS'
   | 'QUOTA_PHOTOS'
   | 'QUOTA_STORAGE'
@@ -9,6 +10,7 @@ export type QuotaErrorCode =
   | 'TENANT_SUSPENDED';
 
 const SAFE_MESSAGES: Readonly<Record<QuotaErrorCode, string>> = {
+  QUOTA_ADMINS: 'This gallery has reached its collaborator limit.',
   QUOTA_ALBUMS: 'This gallery has reached its album limit.',
   QUOTA_PHOTOS: 'This gallery has reached its photo limit.',
   QUOTA_STORAGE: 'This gallery has reached its storage limit.',

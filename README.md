@@ -11,8 +11,9 @@ lives at `/admin/`, and the NestJS API at `/api/`.
 Gallery content and administration remain Telegram-only: signed Telegram Mini
 App init data is the authentication boundary. Ordinary browsers see a public
 product landing page, never gallery data. Standalone browser accounts, public
-non-Telegram galleries, collaborator roles, and bring-your-own bots are not
-supported.
+non-Telegram galleries, ownership transfer, and bring-your-own bots are not
+supported. Multi mode supports owner-managed collaborator administrators for
+gallery content, without billing or ownership authority.
 
 ## Production topology
 
@@ -25,8 +26,9 @@ supported.
 
 Both Mini Apps use the same Telegram bot. The API validates signed Telegram init
 data for all protected routes. In the default `single` mode it checks
-`ADMIN_TG_IDS` for writes; in `multi` mode it checks database-backed tenant owner
-memberships and scopes every album, photo, intent, object key, and media URL.
+`ADMIN_TG_IDS` for writes; in `multi` mode it checks database-backed tenant
+owner/admin memberships and scopes every album, photo, intent, object key, and
+media URL.
 Runtime public config contains only the bot username, the two Mini App short
 names, tenancy mode, upload limit, and optional public Terms/Privacy URLs—never
 tokens, administrator IDs, storage credentials, paths, or signing secrets.
@@ -129,14 +131,17 @@ Important public operational routes:
 | `GET /api/health/live` | Process liveness, without dependency calls |
 | `GET /api/health/ready` | Bounded PostgreSQL and storage readiness |
 | `GET /api/media/tenants/:tenantId/photos/:id/:variant` | Tenant-bound signed proxy media delivery |
-| `GET/POST /api/tenants` | Owned galleries and multi-mode onboarding |
+| `GET/POST /api/tenants` | Accessible galleries and multi-mode onboarding |
+| `GET/POST /api/tenants/:slug/members` | Owner-only collaborator management |
+| `DELETE /api/tenants/:slug/members/:tgUserId` | Owner-only collaborator revocation |
 | `POST /api/reports` | Rate-limited gallery abuse report intake |
 | `GET/POST /api/billing/*` | Owner plan, checkout, and renewal controls |
 | `POST /api/telegram/webhook` | Secret-authenticated Telegram payment updates |
 
 Album and upload routes require `Authorization: tma <initDataRaw>`; mutations
-require an env administrator in single mode or the selected tenant's owner in
-multi mode. Uploads use a server-created intent,
+require an env administrator in single mode or the selected tenant's owner/admin
+membership in multi mode. Billing and collaborator management remain owner-only.
+Uploads use a server-created intent,
 then either a same-origin proxy PUT or presigned S3 PUT, followed by confirmation
 with the intent ID. Clients never choose or receive raw storage keys.
 

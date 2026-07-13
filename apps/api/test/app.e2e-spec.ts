@@ -5,7 +5,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import sharp from 'sharp';
-import { TenantPlan } from '../generated/prisma/client';
+import { TenantPlan, TenantRole } from '../generated/prisma/client';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
 import { validateEnv } from '../src/config/env';
@@ -287,6 +287,7 @@ interface TenantResponseBody {
   id: string;
   name: string;
   plan: string;
+  role: string;
   slug: string;
   status: string;
   usage: {
@@ -356,6 +357,7 @@ describe('Tenant isolation (e2e)', () => {
     expect(alpha).toMatchObject({
       name: 'Alpha Gallery',
       plan: 'free',
+      role: 'owner',
       slug: 'alpha_gallery',
       status: 'active',
     });
@@ -396,10 +398,93 @@ describe('Tenant isolation (e2e)', () => {
       .expect(404);
   });
 
+  it('delegates content administration without delegating owner authority', async () => {
+    await request(app.getHttpServer())
+      .post(`/api/tenants/${alpha.slug}/members`)
+      .set('Authorization', authorization(101))
+      .send({ tgUserId: '909' })
+      .expect(201)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          tgUserId: '909',
+          role: 'admin',
+        });
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/tenants/${alpha.slug}/members`)
+      .set('Authorization', authorization(101))
+      .send({ tgUserId: '909' })
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .get(`/api/tenants/${alpha.slug}/members`)
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as {
+          adminLimit: number;
+          members: Array<{ role: string; tgUserId: string }>;
+        };
+        expect(body).toMatchObject({ adminLimit: 10 });
+        expect(body.members).toEqual([
+          expect.objectContaining({ tgUserId: '101', role: 'owner' }),
+          expect.objectContaining({ tgUserId: '909', role: 'admin' }),
+        ]);
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/tenants')
+      .set('Authorization', authorization(909))
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual([
+          expect.objectContaining({ id: alpha.id, role: 'admin' }),
+        ]);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/tenants/${alpha.slug}/members`)
+      .set('Authorization', authorization(909))
+      .expect(404);
+    await request(app.getHttpServer())
+      .get('/api/billing')
+      .set('Authorization', authorization(909))
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/tenants/${alpha.slug}/members`)
+      .set('Authorization', authorization(202))
+      .send({ tgUserId: '808' })
+      .expect(404);
+
+    const limitFixtureIds = Array.from({ length: 9 }, (_, index) =>
+      BigInt(910 + index),
+    );
+    await prisma.tenantMembership.createMany({
+      data: limitFixtureIds.map((tgUserId) => ({
+        tenantId: alpha.id,
+        tgUserId,
+        role: TenantRole.ADMIN,
+      })),
+    });
+    await request(app.getHttpServer())
+      .post(`/api/tenants/${alpha.slug}/members`)
+      .set('Authorization', authorization(101))
+      .send({ tgUserId: '919' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'QUOTA_ADMINS' });
+      });
+    await prisma.tenantMembership.deleteMany({
+      where: { tenantId: alpha.id, tgUserId: { in: limitFixtureIds } },
+    });
+  });
+
   it('keeps selectors separate from owner authorization and scopes albums', async () => {
     const alphaAlbumResponse = await request(app.getHttpServer())
       .post('/api/albums')
-      .set('Authorization', authorization(101))
+      .set('Authorization', authorization(909))
       .set('X-Tenant-Slug', alpha.slug)
       .send({ name: 'Alpha album' })
       .expect(201);
@@ -633,6 +718,34 @@ describe('Tenant isolation (e2e)', () => {
         },
       }),
     ).rejects.toBeDefined();
+  });
+
+  it('lets only the owner revoke a collaborator and never the owner', async () => {
+    await request(app.getHttpServer())
+      .delete(`/api/tenants/${alpha.slug}/members/101`)
+      .set('Authorization', authorization(101))
+      .expect(404);
+    await request(app.getHttpServer())
+      .delete(`/api/tenants/${alpha.slug}/members/909`)
+      .set('Authorization', authorization(909))
+      .expect(404);
+    await request(app.getHttpServer())
+      .delete(`/api/tenants/${alpha.slug}/members/909`)
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect({ removed: true, tgUserId: '909' });
+
+    await request(app.getHttpServer())
+      .get('/api/tenants')
+      .set('Authorization', authorization(909))
+      .expect(200)
+      .expect([]);
+    await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(909))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ name: 'Revoked collaborator album' })
+      .expect(403);
   });
 
   it('accepts bounded reports and keeps operator actions outside tenant auth', async () => {

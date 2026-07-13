@@ -2,7 +2,8 @@
 
 The same image supports a self-hosted single gallery and a hosted multi-gallery
 service. `TENANCY_MODE=single` is the default. Both modes use one Telegram bot;
-per-tenant bot tokens and white-label bots are not supported.
+per-tenant bot tokens, ownership transfer, and white-label bots are not
+supported.
 
 ## Mode behavior
 
@@ -19,13 +20,33 @@ per-tenant bot tokens and white-label bots are not supported.
 
 - Telegram init data still establishes identity. A tenant slug, header, or
   `start_param` only selects a gallery and never grants administrator access.
-- Every mutation checks an `OWNER` membership for the validated Telegram user.
+- Gallery-content mutations check an `OWNER` or `ADMIN` membership for the
+  validated Telegram user. Billing, ownership, and membership changes require
+  `OWNER`.
 - `tenant_<slug>` opens a gallery home. Existing `album_<id>` links remain valid
   and resolve the album's tenant on the server.
 - A launch without a tenant or album parameter stays neutral. It never selects
   the first tenant in the database.
 - New media uses `tenants/<tenantId>/...`. Existing objects remain at their old
   keys and continue to work; the transition does not move media.
+
+## Collaborator administrators
+
+In multi mode, an owner can open **Team** in the administrator Mini App and add
+up to 10 collaborators by numeric Telegram user ID. Usernames are intentionally
+not used as authorization identities because they can change. An `ADMIN`
+membership lets that validated Telegram user select the gallery and create,
+upload, reorder, or delete its albums/photos.
+
+Collaborators cannot view or change the team, access billing controls, replace
+the owner, or manage another tenant. Owners cannot remove an owner membership;
+only `ADMIN` rows can be revoked. Revocation is checked from PostgreSQL on every
+subsequent mutation, so it does not depend on a long-lived application session.
+The limit is enforced under the same tenant transaction lock used for quotas.
+
+Single mode keeps its simpler trust model: every ID in `ADMIN_TG_IDS` has full
+administrative authority over the default gallery. It does not expose the Team
+screen or create membership rows.
 
 ## Bootstrap a tenant owner
 
@@ -81,11 +102,14 @@ Rehearse these steps on a disposable restore before production.
 7. Create two staging tenants with different owners. Verify their album lists,
    uploads, media URLs, reorder, reconciliation, and delete operations never cross;
    verify a valid viewer can read either active gallery but cannot mutate one.
-8. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
+8. Add one collaborator to only the first tenant. Verify content mutations work
+   there, billing/team access fails, and revocation immediately blocks writes.
+9. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
    enablement in production as separate observable steps.
 
-The repository E2E gate rehearses the migration against empty and populated
-legacy schemas and runs a two-tenant isolation matrix. Run it before rollout:
+The repository E2E gate rehearses the migrations against empty and populated
+legacy schemas and runs a two-tenant owner/collaborator isolation matrix. Run it
+before rollout:
 
 ```bash
 pnpm check

@@ -227,12 +227,22 @@ function TenantNavigation({
           </span>
         </label>
         <div className="flex shrink-0 items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em]">
-          <Link
-            className="text-ink-dim transition-colors active:text-brass"
-            to="/billing"
-          >
-            Plan
-          </Link>
+          {selected.role === 'owner' ? (
+            <>
+              <Link
+                className="text-ink-dim transition-colors active:text-brass"
+                to="/team"
+              >
+                Team
+              </Link>
+              <Link
+                className="text-ink-dim transition-colors active:text-brass"
+                to="/billing"
+              >
+                Plan
+              </Link>
+            </>
+          ) : null}
           <a
             className="text-brass transition-opacity active:opacity-60"
             href={homeLink}

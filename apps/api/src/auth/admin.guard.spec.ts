@@ -47,7 +47,7 @@ describe('AdminGuard', () => {
     ).rejects.toEqual(new ForbiddenException('Admin only'));
   });
 
-  it('requires an owner membership in multi mode', async () => {
+  it('requires an administrator membership in multi mode', async () => {
     const memberships = { findUnique: jest.fn().mockResolvedValue(null) };
     const multiGuard = new AdminGuard(
       new ConfigService({ ADMIN_TG_IDS: [], TENANCY_MODE: 'multi' }),
@@ -66,11 +66,40 @@ describe('AdminGuard', () => {
 
     await expect(
       multiGuard.canActivate(executionContext(request)),
-    ).rejects.toEqual(new ForbiddenException('Tenant owner access required'));
+    ).rejects.toEqual(
+      new ForbiddenException('Tenant administrator access required'),
+    );
     expect(memberships.findUnique).toHaveBeenCalledWith({
       where: {
         tenantId_tgUserId: { tenantId: 'tenant-1', tgUserId: 7n },
       },
     });
   });
+
+  it.each(['OWNER', 'ADMIN'])(
+    'allows a multi-tenant %s membership',
+    async (role) => {
+      const memberships = {
+        findUnique: jest.fn().mockResolvedValue({ role }),
+      };
+      const multiGuard = new AdminGuard(
+        new ConfigService({ ADMIN_TG_IDS: [], TENANCY_MODE: 'multi' }),
+        { tenantMembership: memberships } as unknown as PrismaService,
+      );
+      const request = {
+        headers: {},
+        tgAuth: { authDate: 1, user: { id: 7 } },
+        tenantContext: {
+          id: 'tenant-1',
+          mode: 'multi',
+          slug: 'tenant_one',
+          status: 'ACTIVE',
+        },
+      } as Partial<TgRequest>;
+
+      await expect(
+        multiGuard.canActivate(executionContext(request)),
+      ).resolves.toBe(true);
+    },
+  );
 });

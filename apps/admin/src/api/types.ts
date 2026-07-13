@@ -33,6 +33,7 @@ export interface Tenant {
   openReportCount: number;
   plan: string;
   policyVersion: string;
+  role: 'owner' | 'admin';
   slug: string;
   status: 'active' | 'suspended';
   usage: {
@@ -44,6 +45,17 @@ export interface Tenant {
     storageReservedBytes: string;
     storageUsedBytes: string;
   };
+}
+
+export interface TenantMember {
+  createdAt: string;
+  role: 'owner' | 'admin';
+  tgUserId: string;
+}
+
+export interface TenantMembers {
+  adminLimit: number;
+  members: TenantMember[];
 }
 
 export interface BillingState {

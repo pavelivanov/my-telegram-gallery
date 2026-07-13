@@ -20,6 +20,7 @@ enum TenantPlan {
 
 enum TenantRole {
   OWNER
+  ADMIN
 }
 
 model Tenant {

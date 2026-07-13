@@ -14,3 +14,11 @@ export class CreateTenantDto {
   })
   slug: string;
 }
+
+export class AddTenantAdminDto {
+  @IsString()
+  @Matches(/^[1-9]\d{0,15}$/, {
+    message: 'tgUserId must be a positive decimal Telegram user ID',
+  })
+  tgUserId: string;
+}
