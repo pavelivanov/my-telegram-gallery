@@ -51,6 +51,28 @@ describe('validateEnv', () => {
     expect(env.BILLING_PRO_PRICE_STARS).toBeUndefined();
     expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
     expect(env.TENANCY_MODE).toBe('single');
+    expect(env.SENTRY_DSN).toBeUndefined();
+    expect(env.SENTRY_ENVIRONMENT).toBeUndefined();
+    expect(env.SENTRY_RELEASE).toBeUndefined();
+    expect(env.SENTRY_TRACES_SAMPLE_RATE).toBe(0);
+  });
+
+  it('normalizes optional Sentry monitoring settings', () => {
+    const env = validateEnv(
+      validEnvironment({
+        SENTRY_DSN: 'https://public@example.com/42',
+        SENTRY_ENVIRONMENT: 'staging',
+        SENTRY_RELEASE: 'gallery@abc123',
+        SENTRY_TRACES_SAMPLE_RATE: '0.25',
+      }),
+    );
+
+    expect(env).toMatchObject({
+      SENTRY_DSN: 'https://public@example.com/42',
+      SENTRY_ENVIRONMENT: 'staging',
+      SENTRY_RELEASE: 'gallery@abc123',
+      SENTRY_TRACES_SAMPLE_RATE: 0.25,
+    });
   });
 
   it('supports legacy ADMIN_TG_ID', () => {
@@ -189,6 +211,26 @@ describe('validateEnv', () => {
     ],
     ['invalid ops hash', { OPS_TOKEN_SHA256: 'not-a-hash' }, 'SHA-256'],
     ['invalid ops actor', { OPS_ACTOR: 'bad actor' }, 'safe identity'],
+    [
+      'invalid Sentry DSN',
+      { SENTRY_DSN: 'http://public@example.com/42' },
+      'SENTRY_DSN',
+    ],
+    [
+      'invalid Sentry environment',
+      { SENTRY_ENVIRONMENT: 'production us' },
+      'SENTRY_ENVIRONMENT',
+    ],
+    [
+      'invalid Sentry release',
+      { SENTRY_RELEASE: 'owner/gallery@abc123' },
+      'SENTRY_RELEASE',
+    ],
+    [
+      'invalid Sentry trace sample rate',
+      { SENTRY_TRACES_SAMPLE_RATE: '1.1' },
+      'between 0 and 1',
+    ],
   ])('rejects %s', (_name, overrides, message) => {
     expect(() => validateEnv(validEnvironment(overrides))).toThrow(message);
   });

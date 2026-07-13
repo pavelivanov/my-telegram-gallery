@@ -62,6 +62,10 @@ export interface AppEnvironment {
   BILLING_PRIVACY_URL?: string;
   OPS_TOKEN_SHA256?: string;
   OPS_ACTOR?: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
+  SENTRY_TRACES_SAMPLE_RATE: number;
   STATIC_ROOT?: string;
 }
 
@@ -252,6 +256,80 @@ function parseOptionalHttpsUrl(
     errors.push(`${key} must be an HTTPS URL without embedded credentials`);
     return undefined;
   }
+}
+
+function parseSentryDsn(
+  config: RawEnvironment,
+  errors: string[],
+): string | undefined {
+  const raw = readString(config, 'SENTRY_DSN');
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (
+      url.protocol !== 'https:' ||
+      !url.username ||
+      url.password ||
+      !url.hostname ||
+      url.pathname === '/'
+    ) {
+      throw new Error();
+    }
+    return url.toString();
+  } catch {
+    errors.push(
+      'SENTRY_DSN must be an HTTPS Sentry DSN with a public key and project ID',
+    );
+    return undefined;
+  }
+}
+
+function parseSentryEnvironment(
+  config: RawEnvironment,
+  errors: string[],
+): string | undefined {
+  const value = readString(config, 'SENTRY_ENVIRONMENT');
+  if (!value) return undefined;
+  if (value.length > 64 || value === 'None' || /[\s/]/.test(value)) {
+    errors.push(
+      'SENTRY_ENVIRONMENT must be at most 64 characters without whitespace or slashes and cannot be None',
+    );
+  }
+  return value;
+}
+
+function parseSentryRelease(
+  config: RawEnvironment,
+  errors: string[],
+): string | undefined {
+  const value = readString(config, 'SENTRY_RELEASE');
+  if (!value) return undefined;
+  if (
+    value.length > 200 ||
+    value === '.' ||
+    value === '..' ||
+    /[\r\n\t/\\]/.test(value)
+  ) {
+    errors.push(
+      'SENTRY_RELEASE must be at most 200 characters without control characters or slashes',
+    );
+  }
+  return value;
+}
+
+function parseUnitInterval(
+  config: RawEnvironment,
+  key: string,
+  defaultValue: number,
+  errors: string[],
+): number {
+  const raw = readString(config, key) ?? String(defaultValue);
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    errors.push(`${key} must be between 0 and 1`);
+    return defaultValue;
+  }
+  return value;
 }
 
 function parseBoolean(
@@ -611,6 +689,15 @@ export function validateEnv(
   if (opsActor && !/^[A-Za-z0-9_.@-]{2,64}$/.test(opsActor)) {
     errors.push('OPS_ACTOR must be 2-64 safe identity characters');
   }
+  const sentryDsn = parseSentryDsn(config, errors);
+  const sentryEnvironment = parseSentryEnvironment(config, errors);
+  const sentryRelease = parseSentryRelease(config, errors);
+  const sentryTracesSampleRate = parseUnitInterval(
+    config,
+    'SENTRY_TRACES_SAMPLE_RATE',
+    0,
+    errors,
+  );
 
   if (errors.length > 0) {
     throw new Error(
@@ -654,6 +741,10 @@ export function validateEnv(
     BILLING_PRIVACY_URL: billingPrivacyUrl,
     OPS_TOKEN_SHA256: opsTokenSha256,
     OPS_ACTOR: opsActor,
+    SENTRY_DSN: sentryDsn,
+    SENTRY_ENVIRONMENT: sentryEnvironment,
+    SENTRY_RELEASE: sentryRelease,
+    SENTRY_TRACES_SAMPLE_RATE: sentryTracesSampleRate,
     STATIC_ROOT: staticRoot,
   };
 }

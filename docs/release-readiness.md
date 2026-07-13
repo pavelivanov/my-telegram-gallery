@@ -76,6 +76,11 @@ identifiers.
   overflow. The page uses only project code/CSS and introduces no marketing
   asset-ownership claim. Public copy and configured legal destinations still
   require owner review before launch.
+- Optional server-side Sentry capture is wired through the existing global
+  exception boundary. It is disabled without a DSN, defaults to error-only
+  capture, strips request/identity data, and reuses configured-secret redaction.
+  No external project was contacted during local verification; staging delivery,
+  retention, and scrubbed-event inspection remain operator acceptance gates.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.

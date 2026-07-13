@@ -87,6 +87,30 @@ For an incident, capture the response request ID and search the centralized app
 logs for that exact value. Do not paste authorization headers, Telegram init
 data, signed media URLs, or environment dumps into tickets or chat.
 
+## Optional Sentry error monitoring
+
+Sentry is disabled unless `SENTRY_DSN` contains a valid HTTPS project DSN, so a
+default self-hosted installation initializes no monitoring client and sends no
+monitoring traffic. To opt in, set the DSN plus a stable
+`SENTRY_ENVIRONMENT` (for example `staging` or `production`) and
+`SENTRY_RELEASE` (for example an image version or Git revision), then restart
+the app. Errors outside the expected HTTP-exception path are captured by the
+global exception filter.
+
+The integration sets `sendDefaultPii=false`, disables SDK logs and breadcrumbs,
+and removes user identity, headers, cookies, request bodies, query strings, and
+URL fragments before sending an error. It also applies the same configured-
+secret and Telegram/payment redaction used by application logs. Treat this as a
+defense in depth control, not permission to put credentials in exception text.
+
+`SENTRY_TRACES_SAMPLE_RATE=0` is the supported default. A nonzero value opts
+into transaction collection and should be enabled only after reviewing data
+handling, retention, event volume, and cost with the selected Sentry operator.
+Validate a new project in staging by causing a non-sensitive internal failure,
+confirming one event arrives under the intended environment/release, and
+checking that request/identity fields and seeded secret strings are absent.
+There is intentionally no public debug-error endpoint.
+
 ## Proxy and rate-limit topology
 
 `TRUST_PROXY_HOPS=0` is required when the API is reached directly. The supplied
@@ -165,6 +189,8 @@ cannot inspect reporter detail or resolve reports.
 - [ ] Report rate/duplicate tests and suspension smoke pass.
 - [ ] One gallery report can be listed and resolved through the operator CLI.
 - [ ] Seeded secret strings are absent from captured logs.
+- [ ] If Sentry is enabled, one staging error arrives without request,
+      identity, or seeded-secret data; otherwise the DSN remains empty.
 - [ ] `TRUST_PROXY_HOPS` matches the observed topology.
 - [ ] Exactly one app replica is configured while throttling is in memory.
 - [ ] Abuse contact and appeal path are published.

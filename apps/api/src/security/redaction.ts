@@ -1,18 +1,23 @@
 import { ConfigService } from '@nestjs/config';
 
-const SECRET_KEYS = [
+export const ERROR_SECRET_ENV_KEYS = [
   'DATABASE_URL',
   'TELEGRAM_BOT_TOKEN',
   'TELEGRAM_WEBHOOK_SECRET',
   'MEDIA_URL_SIGNING_SECRET',
   'S3_ACCESS_KEY_ID',
   'S3_SECRET_ACCESS_KEY',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'POSTGRES_PASSWORD',
 ] as const;
 
-export function redactErrorText(text: string, config: ConfigService): string {
+export function redactSensitiveText(
+  text: string,
+  secretValues: readonly (string | undefined)[],
+): string {
   let redacted = text;
-  for (const key of SECRET_KEYS) {
-    const value = config.get<string>(key);
+  for (const value of secretValues) {
     if (value && value.length >= 4)
       redacted = redacted.replaceAll(value, '[REDACTED]');
   }
@@ -23,4 +28,11 @@ export function redactErrorText(text: string, config: ConfigService): string {
       '$1=[REDACTED]',
     )
     .replace(/([?&](?:signature|expires)=)[^&\s]+/gi, '$1[REDACTED]');
+}
+
+export function redactErrorText(text: string, config: ConfigService): string {
+  return redactSensitiveText(
+    text,
+    ERROR_SECRET_ENV_KEYS.map((key) => config.get<string>(key)),
+  );
 }

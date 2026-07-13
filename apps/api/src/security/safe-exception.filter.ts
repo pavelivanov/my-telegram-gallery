@@ -1,12 +1,13 @@
 import {
-  ArgumentsHost,
   Catch,
   HttpException,
   HttpStatus,
   Logger,
+  type ArgumentsHost,
   type ExceptionFilter,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SentryExceptionCaptured } from '@sentry/nestjs';
 import { randomUUID } from 'node:crypto';
 import type { Response } from 'express';
 import type { TgRequest } from '../auth/request-context';
@@ -18,6 +19,7 @@ export class SafeExceptionFilter implements ExceptionFilter {
 
   constructor(private readonly config: ConfigService) {}
 
+  @SentryExceptionCaptured()
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const request = http.getRequest<TgRequest>();

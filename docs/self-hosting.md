@@ -105,6 +105,14 @@ but not stored media; losing the bot token requires rotation through BotFather.
 See [backups.md](backups.md) for the complete retention and restore-drill
 procedure, and [upgrading.md](upgrading.md) for update and rollback.
 
+## Optional error monitoring
+
+Server-side Sentry reporting is available but disabled by default. Leave
+`SENTRY_DSN` empty for a traffic-free installation. Operators who opt in should
+configure environment/release labels, keep tracing at zero initially, and
+complete the privacy and staging-delivery checks in
+[operations.md](operations.md#optional-sentry-error-monitoring).
+
 ## Optional S3-compatible storage
 
 Set `STORAGE_DRIVER=s3` and fill `S3_REGION`, `S3_BUCKET`, access credentials,

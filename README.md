@@ -67,6 +67,9 @@ See [docs/tenancy.md](docs/tenancy.md) before enabling multi mode.
 Hosted operators should also read [docs/operations.md](docs/operations.md),
 [docs/backups.md](docs/backups.md), [docs/abuse.md](docs/abuse.md), and the
 [Telegram Stars billing runbook](docs/billing.md).
+Optional server-side Sentry error reporting is disabled by default and covered
+by the operations runbook; self-hosted installs send no monitoring traffic
+unless an operator configures a DSN.
 
 ## Repository layout
 
