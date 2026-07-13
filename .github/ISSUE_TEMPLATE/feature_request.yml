@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a scoped product outcome without private data.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the operator or gallery-owner problem, not only a proposed implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Tenant, storage, billing, and migration impact
+      description: Note affected trust boundaries and compatibility. Use synthetic examples only.
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Data-safety confirmation
+      options:
+        - label: I did not include secrets, personal data, private media, payment IDs, or Telegram init data.
+          required: true

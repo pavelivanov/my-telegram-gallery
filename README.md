@@ -4,6 +4,14 @@ A self-hostable Telegram gallery with two Mini Apps and one production image.
 The public gallery lives at `/`, the administrator app at `/admin/`, and the
 NestJS API at `/api/`.
 
+> **Pre-release:** no public release or support SLA exists yet. The source
+> license, ownership, security contact, release signing, and clean-environment
+> acceptance gates are still pending. Do not redistribute a release candidate.
+
+The current product is Telegram-only: signed Telegram Mini App init data is the
+authentication boundary. Standalone browser accounts, public non-Telegram
+galleries, collaborator roles, and bring-your-own bots are not supported.
+
 ## Production topology
 
 | Component | Role |
@@ -21,7 +29,17 @@ Runtime public config contains only the bot username, the two Mini App short
 names, tenancy mode, and upload limit—never tokens, administrator IDs, storage
 credentials, paths, or signing secrets.
 
-## Self-host in a few minutes
+## Supported modes
+
+| Area | Supported choice |
+| --- | --- |
+| Deployment | One application image plus PostgreSQL |
+| Storage | Local filesystem volume or S3-compatible object storage |
+| Transfers | Same-origin proxy; direct S3 transfer for reviewed hosted setups |
+| Tenancy | `single` for self-hosting; `multi` for the not-yet-launched SaaS |
+| Edge/TLS | Docker Compose with Caddy; source-built one-service Railway escape hatch |
+
+## Self-host in about 15 minutes
 
 You need Docker with Compose, a domain pointed at the server, inbound ports
 80/443, one BotFather bot with two Mini Apps, and your numeric Telegram ID.
@@ -39,8 +57,9 @@ gallery and `https://YOUR_DOMAIN/admin/` for the administrator app. The init
 script generates strong database and media-signing secrets without printing or
 overwriting them.
 
-The complete DNS, BotFather, backup, S3, troubleshooting, and Railway guidance
-is in [docs/self-hosting.md](docs/self-hosting.md). Read
+The complete 15-minute DNS, BotFather, backup, S3, and troubleshooting guide is
+in [docs/self-hosting.md](docs/self-hosting.md). **Create and verify a backup
+before every upgrade.** Read
 [docs/upgrading.md](docs/upgrading.md) before updating a live installation.
 See [docs/tenancy.md](docs/tenancy.md) before enabling multi mode.
 Hosted operators should also read [docs/operations.md](docs/operations.md),
@@ -61,7 +80,7 @@ scripts/       verification, initialization, and disposable smoke checks
 
 ## Local development
 
-Prerequisites are Node.js 22+, Corepack/pnpm 10, and PostgreSQL 17.
+Prerequisites are Node.js 24 LTS, Corepack/pnpm 10, and PostgreSQL 17.
 
 ```bash
 corepack enable
@@ -122,6 +141,8 @@ cleanup/reconciliation and audited operator commands are documented in
 ## Verification
 
 ```bash
+pnpm install --frozen-lockfile
+pnpm audit:dependencies
 pnpm check
 pnpm build
 docker build -t my-telegram-gallery:local .
@@ -133,6 +154,11 @@ The smoke test creates a disposable Compose project, validates generated
 secrets, applies migrations, checks readiness/liveness and both static mounts,
 then always removes containers and volumes.
 
+Maintainers can create a private, checksummed image archive, license inventory,
+SBOM, and vulnerability report by following
+[the release-candidate procedure](docs/releasing.md). Release evidence and open
+human gates are tracked in [docs/release-readiness.md](docs/release-readiness.md).
+
 ## Deployment policy
 
 The supported topology is one application service. Root `railway.json` is the
@@ -140,4 +166,16 @@ single-service Railway escape hatch and uses the same Dockerfile. The previous
 three-service Railway configuration and helper entry points were retired on
 2026-07-13 and deliberately exit with migration guidance.
 
-This repository does not publish or deploy an image automatically.
+The proposed one-app template and credential-reference mapping are documented
+in [docs/railway.md](docs/railway.md). This repository does not publish or
+deploy an image automatically.
+
+## Project policies
+
+The project is not ready for external contributions or redistribution. Review
+the pending [license decision](docs/decisions/001-license.md),
+[third-party inventory](THIRD_PARTY_NOTICES.md),
+[contribution rules](CONTRIBUTING.md), [community standards](CODE_OF_CONDUCT.md),
+[security policy](SECURITY.md), and [support policy](SUPPORT.md). Public source,
+container, Railway template, hosted SaaS, terms, privacy, and acceptable-use
+publication remain separate approval gates.

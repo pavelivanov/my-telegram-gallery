@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible product problem without private data.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, Telegram init data, tenant/customer identity,
+        payment identifiers, private media, or production logs. Security reports
+        follow SECURITY.md and must not be filed here.
+  - type: input
+    id: version
+    attributes:
+      label: Version or revision
+      description: Release version, image digest, or Git commit; never a token.
+      placeholder: 0.1.0-rc.1 or a commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Docker Compose
+        - Railway
+        - Local development
+        - Other self-hosted environment
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+      description: Use synthetic identifiers and media. Include the smallest repeatable steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Sanitized diagnostics
+      description: Include readiness result, browser/OS, storage mode, and commands run. Redact values.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data-safety confirmation
+      options:
+        - label: I removed secrets, personal data, private media, payment IDs, and Telegram init data.
+          required: true
+        - label: This is not a vulnerability report.
+          required: true
