@@ -11,28 +11,73 @@ describe('MediaUrlSigner', () => {
 
   it('binds the photo, variant, and expiry', () => {
     const expires = now + 60;
-    const signature = signer.sign('photo-1', 'thumb', expires);
+    const signature = signer.sign('tenant-1', 'photo-1', 'thumb', expires);
 
     expect(
-      signer.verify('photo-1', 'thumb', String(expires), signature, now),
+      signer.verify(
+        'tenant-1',
+        'photo-1',
+        'thumb',
+        String(expires),
+        signature,
+        now,
+      ),
     ).toEqual({ expires, variant: 'thumb' });
     expect(
-      signer.verify('photo-2', 'thumb', String(expires), signature, now),
+      signer.verify(
+        'tenant-2',
+        'photo-1',
+        'thumb',
+        String(expires),
+        signature,
+        now,
+      ),
     ).toBeNull();
     expect(
-      signer.verify('photo-1', 'preview', String(expires), signature, now),
+      signer.verify(
+        'tenant-1',
+        'photo-2',
+        'thumb',
+        String(expires),
+        signature,
+        now,
+      ),
+    ).toBeNull();
+    expect(
+      signer.verify(
+        'tenant-1',
+        'photo-1',
+        'preview',
+        String(expires),
+        signature,
+        now,
+      ),
     ).toBeNull();
   });
 
   it('rejects expired and malformed signatures', () => {
     const expires = now - 1;
-    const signature = signer.sign('photo-1', 'original', expires);
+    const signature = signer.sign('tenant-1', 'photo-1', 'original', expires);
 
     expect(
-      signer.verify('photo-1', 'original', String(expires), signature, now),
+      signer.verify(
+        'tenant-1',
+        'photo-1',
+        'original',
+        String(expires),
+        signature,
+        now,
+      ),
     ).toBeNull();
     expect(
-      signer.verify('photo-1', 'original', String(now + 60), 'bad', now),
+      signer.verify(
+        'tenant-1',
+        'photo-1',
+        'original',
+        String(now + 60),
+        'bad',
+        now,
+      ),
     ).toBeNull();
   });
 });

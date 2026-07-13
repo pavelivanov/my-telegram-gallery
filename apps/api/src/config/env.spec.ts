@@ -37,6 +37,7 @@ describe('validateEnv', () => {
     expect(env.MEDIA_URL_TTL_SECONDS).toBe(3600);
     expect(env.READINESS_TIMEOUT_MS).toBe(3000);
     expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
+    expect(env.TENANCY_MODE).toBe('single');
   });
 
   it('supports legacy ADMIN_TG_ID', () => {
@@ -45,6 +46,15 @@ describe('validateEnv', () => {
     );
 
     expect(env.ADMIN_TG_IDS).toEqual(['42']);
+  });
+
+  it('allows database-owned administration without an env allowlist in multi mode', () => {
+    const env = validateEnv(
+      validEnvironment({ TENANCY_MODE: 'multi', ADMIN_TG_IDS: '' }),
+    );
+
+    expect(env.TENANCY_MODE).toBe('multi');
+    expect(env.ADMIN_TG_IDS).toEqual([]);
   });
 
   it('maps legacy R2 variables to the normalized S3 configuration', () => {
@@ -115,6 +125,7 @@ describe('validateEnv', () => {
       'letters, numbers, or underscores',
     ],
     ['missing admins', { ADMIN_TG_IDS: '', ADMIN_TG_ID: '' }, 'ADMIN_TG_IDS'],
+    ['bad tenancy mode', { TENANCY_MODE: 'team' }, 'single or multi'],
     ['bad admin', { ADMIN_TG_IDS: '1,abc' }, 'non-decimal'],
     ['bad max age', { TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: '59' }, 'between 60'],
     [

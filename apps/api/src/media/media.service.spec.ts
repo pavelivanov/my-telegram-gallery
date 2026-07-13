@@ -8,6 +8,7 @@ import { MediaService } from './media.service';
 
 const photo: Photo = {
   id: 'photo-1',
+  tenantId: 'tenant-1',
   albumId: 'album-1',
   key: 'photos/album-1/photo-1/original',
   thumbKey: 'photos/album-1/photo-1/original.thumb.webp',
@@ -28,7 +29,7 @@ function setup(direct = false) {
   });
   const storage = new InMemoryStorage(direct);
   const prisma = {
-    photo: { findUnique: jest.fn().mockResolvedValue(photo) },
+    photo: { findFirst: jest.fn().mockResolvedValue(photo) },
   };
   const signer = new MediaUrlSigner(config);
   const service = new MediaService(
@@ -46,8 +47,12 @@ describe('MediaService', () => {
 
     const result = await service.serializePhoto(photo);
 
-    expect(result.url).toMatch(/^\/api\/media\/photos\/photo-1\/original\?/);
-    expect(result.thumbUrl).toMatch(/^\/api\/media\/photos\/photo-1\/thumb\?/);
+    expect(result.url).toMatch(
+      /^\/api\/media\/tenants\/tenant-1\/photos\/photo-1\/original\?/,
+    );
+    expect(result.thumbUrl).toMatch(
+      /^\/api\/media\/tenants\/tenant-1\/photos\/photo-1\/thumb\?/,
+    );
     expect(result).not.toHaveProperty('key');
     expect(result).not.toHaveProperty('thumbKey');
     expect(JSON.stringify(result)).not.toContain(photo.key);
@@ -66,9 +71,15 @@ describe('MediaService', () => {
     const getSpy = jest.spyOn(storage, 'get');
 
     await expect(
-      service.resolveSignedMedia('photo-1', 'original', '9999999999', 'bad'),
+      service.resolveSignedMedia(
+        photo.tenantId,
+        'photo-1',
+        'original',
+        '9999999999',
+        'bad',
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(prisma.photo.findUnique).not.toHaveBeenCalled();
+    expect(prisma.photo.findFirst).not.toHaveBeenCalled();
     expect(getSpy).not.toHaveBeenCalled();
   });
 
@@ -79,10 +90,16 @@ describe('MediaService', () => {
       contentType: 'image/png',
     });
     const expires = Math.floor(Date.now() / 1000) + 60;
-    const signature = signer.sign(photo.id, 'original', expires);
+    const signature = signer.sign(
+      photo.tenantId,
+      photo.id,
+      'original',
+      expires,
+    );
 
     await expect(
       service.resolveSignedMedia(
+        photo.tenantId,
         photo.id,
         'original',
         String(expires),
@@ -96,15 +113,16 @@ describe('MediaService', () => {
 
   it('returns not found for a missing photo after signature validation', async () => {
     const { prisma, service, signer } = setup();
-    prisma.photo.findUnique.mockResolvedValue(null);
+    prisma.photo.findFirst.mockResolvedValue(null);
     const expires = Math.floor(Date.now() / 1000) + 60;
 
     await expect(
       service.resolveSignedMedia(
+        photo.tenantId,
         'missing',
         'thumb',
         String(expires),
-        signer.sign('missing', 'thumb', expires),
+        signer.sign(photo.tenantId, 'missing', 'thumb', expires),
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });

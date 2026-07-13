@@ -12,6 +12,7 @@ import { validateEnv } from './config/env';
 import { StorageModule } from './storage/storage.module';
 import { PublicConfigModule } from './public-config/public-config.module';
 import { HealthModule } from './health/health.module';
+import { TenantsModule } from './tenants/tenants.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { HealthModule } from './health/health.module';
     }),
     PrismaModule,
     StorageModule,
+    TenantsModule,
     AlbumsModule,
     PhotosModule,
     PublicConfigModule,

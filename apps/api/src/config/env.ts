@@ -12,6 +12,7 @@ const MIN_MEDIA_SIGNING_SECRET_BYTES = 32;
 
 export type StorageDriver = 'filesystem' | 's3';
 export type StorageTransferMode = 'proxy' | 'direct';
+export type TenancyMode = 'single' | 'multi';
 
 export interface AppEnvironment {
   DATABASE_URL: string;
@@ -20,6 +21,7 @@ export interface AppEnvironment {
   TELEGRAM_ADMIN_APP_SHORT_NAME: string;
   TELEGRAM_GALLERY_APP_SHORT_NAME: string;
   ADMIN_TG_IDS: string[];
+  TENANCY_MODE: TenancyMode;
   TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: number;
   WEB_ORIGINS: string[];
   STORAGE_DRIVER: StorageDriver;
@@ -111,13 +113,19 @@ function parseStaticRoot(
   return resolve(value);
 }
 
-function parseAdminIds(config: RawEnvironment, errors: string[]): string[] {
+function parseAdminIds(
+  config: RawEnvironment,
+  errors: string[],
+  required: boolean,
+): string[] {
   const value =
     readString(config, 'ADMIN_TG_IDS') ?? readString(config, 'ADMIN_TG_ID');
   if (!value) {
-    errors.push(
-      'ADMIN_TG_IDS is required (legacy ADMIN_TG_ID is also accepted)',
-    );
+    if (required) {
+      errors.push(
+        'ADMIN_TG_IDS is required (legacy ADMIN_TG_ID is also accepted)',
+      );
+    }
     return [];
   }
 
@@ -142,10 +150,22 @@ function parseAdminIds(config: RawEnvironment, errors: string[]): string[] {
   }
 
   const unique = [...new Set(normalized)];
-  if (unique.length === 0) {
+  if (required && unique.length === 0) {
     errors.push('ADMIN_TG_IDS must contain at least one Telegram ID');
   }
   return unique;
+}
+
+function parseTenancyMode(
+  config: RawEnvironment,
+  errors: string[],
+): TenancyMode {
+  const value = readString(config, 'TENANCY_MODE') ?? 'single';
+  if (value !== 'single' && value !== 'multi') {
+    errors.push('TENANCY_MODE must be single or multi');
+    return 'single';
+  }
+  return value;
 }
 
 function parseInteger(
@@ -330,7 +350,8 @@ export function validateEnv(
     'TELEGRAM_GALLERY_APP_SHORT_NAME',
     errors,
   );
-  const adminIds = parseAdminIds(config, errors);
+  const tenancyMode = parseTenancyMode(config, errors);
+  const adminIds = parseAdminIds(config, errors, tenancyMode === 'single');
   const initDataMaxAge = parseInteger(
     config,
     'TELEGRAM_INIT_DATA_MAX_AGE_SECONDS',
@@ -403,6 +424,7 @@ export function validateEnv(
     TELEGRAM_ADMIN_APP_SHORT_NAME: adminAppShortName,
     TELEGRAM_GALLERY_APP_SHORT_NAME: galleryAppShortName,
     ADMIN_TG_IDS: adminIds,
+    TENANCY_MODE: tenancyMode,
     TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: initDataMaxAge,
     WEB_ORIGINS: webOrigins,
     ...storage,

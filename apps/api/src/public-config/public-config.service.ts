@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { TenancyMode } from '../config/env';
 
 export interface PublicConfig {
   botUsername: string;
   adminAppShortName: string;
   galleryAppShortName: string;
-  tenancyMode: 'single';
+  tenancyMode: TenancyMode;
   uploadMaxBytes: number;
 }
 
@@ -22,7 +23,7 @@ export class PublicConfigService {
       galleryAppShortName: this.config.getOrThrow<string>(
         'TELEGRAM_GALLERY_APP_SHORT_NAME',
       ),
-      tenancyMode: 'single',
+      tenancyMode: this.config.getOrThrow<TenancyMode>('TENANCY_MODE'),
       uploadMaxBytes: this.config.getOrThrow<number>('UPLOAD_MAX_BYTES'),
     };
   }

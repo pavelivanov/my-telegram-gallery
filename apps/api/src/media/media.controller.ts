@@ -13,8 +13,9 @@ import { MediaService } from './media.service';
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 
-  @Get('photos/:photoId/:variant')
+  @Get('tenants/:tenantId/photos/:photoId/:variant')
   async getPhoto(
+    @Param('tenantId') tenantId: string,
     @Param('photoId') photoId: string,
     @Param('variant') variant: string,
     @Query('expires') expires: string | undefined,
@@ -22,6 +23,7 @@ export class MediaController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<StreamableFile> {
     const media = await this.media.resolveSignedMedia(
+      tenantId,
       photoId,
       variant,
       expires,

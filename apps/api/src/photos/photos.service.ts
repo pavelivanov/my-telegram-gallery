@@ -23,6 +23,10 @@ import {
 import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/storage.types';
+import {
+  assertTenantReadable,
+  type TenantContext,
+} from '../tenants/tenant-context';
 import { ALLOWED_UPLOAD_MIME_TYPES, type CreateUploadDto } from './photos.dto';
 
 const THUMB_MAX_DIM = 512;
@@ -63,7 +67,8 @@ export class PhotosService {
     this.transferMode = config.getOrThrow<string>('STORAGE_TRANSFER_MODE');
   }
 
-  async createUpload(dto: CreateUploadDto) {
+  async createUpload(context: TenantContext, dto: CreateUploadDto) {
+    assertTenantReadable(context);
     if (
       !ALLOWED_UPLOAD_MIME_TYPES.includes(
         dto.contentType as (typeof ALLOWED_UPLOAD_MIME_TYPES)[number],
@@ -74,8 +79,8 @@ export class PhotosService {
     if (dto.size > this.maxUploadBytes) {
       throw new PayloadTooLargeException('Upload exceeds configured maximum');
     }
-    const album = await this.prisma.album.findUnique({
-      where: { id: dto.albumId },
+    const album = await this.prisma.album.findFirst({
+      where: { id: dto.albumId, tenantId: context.id },
       select: { id: true, tenantId: true },
     });
     if (!album) throw new NotFoundException('Album not found');
@@ -117,12 +122,16 @@ export class PhotosService {
     };
   }
 
-  private async expireIntent(intent: UploadIntent): Promise<never> {
+  private async expireIntent(
+    context: TenantContext,
+    intent: UploadIntent,
+  ): Promise<never> {
     try {
       await this.deleteIntentObjects(intent.key);
       await this.prisma.uploadIntent.updateMany({
         where: {
           id: intent.id,
+          tenantId: context.id,
           status: { not: UploadIntentStatus.CONFIRMED },
         },
         data: { status: UploadIntentStatus.EXPIRED },
@@ -131,6 +140,7 @@ export class PhotosService {
       await this.prisma.uploadIntent.updateMany({
         where: {
           id: intent.id,
+          tenantId: context.id,
           status: { not: UploadIntentStatus.CONFIRMED },
         },
         data: { status: UploadIntentStatus.FAILED },
@@ -143,30 +153,35 @@ export class PhotosService {
     throw new GoneException('Upload intent has expired');
   }
 
-  private async loadUsableIntent(uploadId: string): Promise<UploadIntent> {
-    const intent = await this.prisma.uploadIntent.findUnique({
-      where: { id: uploadId },
+  private async loadUsableIntent(
+    context: TenantContext,
+    uploadId: string,
+  ): Promise<UploadIntent> {
+    const intent = await this.prisma.uploadIntent.findFirst({
+      where: { id: uploadId, tenantId: context.id },
     });
     if (!intent) throw new NotFoundException('Upload intent not found');
     if (
       intent.status !== UploadIntentStatus.CONFIRMED &&
       intent.expiresAt.getTime() <= Date.now()
     ) {
-      return this.expireIntent(intent);
+      return this.expireIntent(context, intent);
     }
     return intent;
   }
 
   async uploadContent(
+    context: TenantContext,
     uploadId: string,
     body: Readable,
     contentType: string | undefined,
     contentLengthRaw: string | undefined,
   ) {
+    assertTenantReadable(context);
     if (this.transferMode !== 'proxy') {
       throw new BadRequestException('Proxy uploads are disabled');
     }
-    const intent = await this.loadUsableIntent(uploadId);
+    const intent = await this.loadUsableIntent(context, uploadId);
     if (intent.status !== UploadIntentStatus.PENDING) {
       throw new ConflictException('Upload intent is not pending');
     }
@@ -200,7 +215,11 @@ export class PhotosService {
     }
 
     const updated = await this.prisma.uploadIntent.updateMany({
-      where: { id: intent.id, status: UploadIntentStatus.PENDING },
+      where: {
+        id: intent.id,
+        tenantId: context.id,
+        status: UploadIntentStatus.PENDING,
+      },
       data: { status: UploadIntentStatus.UPLOADED },
     });
     if (updated.count !== 1) {
@@ -359,11 +378,16 @@ export class PhotosService {
   }
 
   private async rejectIntent(
+    context: TenantContext,
     intent: UploadIntent,
     error: Error,
   ): Promise<never> {
     await this.prisma.uploadIntent.updateMany({
-      where: { id: intent.id, status: { not: UploadIntentStatus.CONFIRMED } },
+      where: {
+        id: intent.id,
+        tenantId: context.id,
+        status: { not: UploadIntentStatus.CONFIRMED },
+      },
       data: { status: UploadIntentStatus.FAILED },
     });
     try {
@@ -379,6 +403,7 @@ export class PhotosService {
   }
 
   private async createPhotoTransaction(
+    context: TenantContext,
     intent: UploadIntent,
     image: ValidatedImage,
     variants: { thumbKey: string; previewKey: string },
@@ -387,8 +412,8 @@ export class PhotosService {
       try {
         return await this.prisma.$transaction(
           async (tx) => {
-            const current = await tx.uploadIntent.findUnique({
-              where: { id: intent.id },
+            const current = await tx.uploadIntent.findFirst({
+              where: { id: intent.id, tenantId: context.id },
               include: { photo: true },
             });
             if (!current)
@@ -407,13 +432,13 @@ export class PhotosService {
             }
 
             const maximum = await tx.photo.aggregate({
-              where: { albumId: current.albumId },
+              where: { albumId: current.albumId, tenantId: context.id },
               _max: { position: true },
             });
             const photo = await tx.photo.create({
               data: {
                 albumId: current.albumId,
-                tenantId: current.tenantId,
+                tenantId: context.id,
                 key: current.key,
                 thumbKey: variants.thumbKey,
                 previewKey: variants.previewKey,
@@ -424,13 +449,16 @@ export class PhotosService {
                 position: (maximum._max.position ?? 0) + 1,
               },
             });
-            await tx.uploadIntent.update({
-              where: { id: current.id },
+            const confirmed = await tx.uploadIntent.updateMany({
+              where: { id: current.id, tenantId: context.id },
               data: {
                 photoId: photo.id,
                 status: UploadIntentStatus.CONFIRMED,
               },
             });
+            if (confirmed.count !== 1) {
+              throw new ConflictException('Upload intent changed');
+            }
             return photo;
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -446,11 +474,12 @@ export class PhotosService {
     throw new Error('Unreachable transaction retry state');
   }
 
-  async confirmUpload(uploadId: string) {
-    const intent = await this.loadUsableIntent(uploadId);
+  async confirmUpload(context: TenantContext, uploadId: string) {
+    assertTenantReadable(context);
+    const intent = await this.loadUsableIntent(context, uploadId);
     if (intent.status === UploadIntentStatus.CONFIRMED && intent.photoId) {
-      const photo = await this.prisma.photo.findUnique({
-        where: { id: intent.photoId },
+      const photo = await this.prisma.photo.findFirst({
+        where: { id: intent.photoId, tenantId: context.id },
       });
       if (!photo) throw new ConflictException('Confirmed photo is missing');
       return this.media.serializePhoto(photo);
@@ -464,6 +493,7 @@ export class PhotosService {
       image = await this.inspectImage(intent);
     } catch (error) {
       return this.rejectIntent(
+        context,
         intent,
         error instanceof Error
           ? error
@@ -476,6 +506,7 @@ export class PhotosService {
       variants = await this.generatePreviews(intent.key, image.buffer);
     } catch (error) {
       return this.rejectIntent(
+        context,
         intent,
         error instanceof Error
           ? error
@@ -483,14 +514,23 @@ export class PhotosService {
       );
     }
 
-    const photo = await this.createPhotoTransaction(intent, image, variants);
+    const photo = await this.createPhotoTransaction(
+      context,
+      intent,
+      image,
+      variants,
+    );
     return this.media.serializePhoto(photo);
   }
 
   /** Admin: generate previews for photos missing any preview variant. */
-  async backfillThumbs() {
+  async backfillThumbs(context: TenantContext) {
+    assertTenantReadable(context);
     const photos = await this.prisma.photo.findMany({
-      where: { OR: [{ thumbKey: null }, { previewKey: null }] },
+      where: {
+        tenantId: context.id,
+        OR: [{ thumbKey: null }, { previewKey: null }],
+      },
     });
     let done = 0;
     for (const photo of photos) {
@@ -500,8 +540,8 @@ export class PhotosService {
           this.maxUploadBytes,
         );
         const variants = await this.generatePreviews(photo.key, original);
-        await this.prisma.photo.update({
-          where: { id: photo.id },
+        await this.prisma.photo.updateMany({
+          where: { id: photo.id, tenantId: context.id },
           data: variants,
         });
         done++;
@@ -513,28 +553,37 @@ export class PhotosService {
   }
 
   /** Any authenticated Telegram user: list the gallery. */
-  async list() {
+  async list(context: TenantContext) {
+    assertTenantReadable(context);
     const photos = await this.prisma.photo.findMany({
+      where: { tenantId: context.id },
       orderBy: { createdAt: 'desc' },
     });
     return Promise.all(photos.map((photo) => this.media.serializePhoto(photo)));
   }
 
   /** Admin: delete a photo and all variants before deleting its DB record. */
-  async remove(id: string) {
-    const photo = await this.prisma.photo.findUnique({ where: { id } });
+  async remove(context: TenantContext, id: string) {
+    assertTenantReadable(context);
+    const photo = await this.prisma.photo.findFirst({
+      where: { id, tenantId: context.id },
+    });
     if (!photo) throw new NotFoundException();
     await Promise.all([
       this.storage.delete(photo.key),
       ...(photo.thumbKey ? [this.storage.delete(photo.thumbKey)] : []),
       ...(photo.previewKey ? [this.storage.delete(photo.previewKey)] : []),
     ]);
-    await this.prisma.photo.delete({ where: { id } });
+    const deleted = await this.prisma.photo.deleteMany({
+      where: { id, tenantId: context.id },
+    });
+    if (deleted.count !== 1) throw new NotFoundException();
   }
 
-  async cleanupExpiredUploads() {
+  async cleanupExpiredUploads(context: TenantContext) {
     const stale = await this.prisma.uploadIntent.findMany({
       where: {
+        tenantId: context.id,
         expiresAt: { lte: new Date() },
         status: {
           in: [
@@ -550,14 +599,14 @@ export class PhotosService {
     for (const intent of stale) {
       try {
         await this.deleteIntentObjects(intent.key);
-        await this.prisma.uploadIntent.update({
-          where: { id: intent.id },
+        await this.prisma.uploadIntent.updateMany({
+          where: { id: intent.id, tenantId: context.id },
           data: { status: UploadIntentStatus.EXPIRED },
         });
         expired++;
       } catch (error) {
-        await this.prisma.uploadIntent.update({
-          where: { id: intent.id },
+        await this.prisma.uploadIntent.updateMany({
+          where: { id: intent.id, tenantId: context.id },
           data: { status: UploadIntentStatus.FAILED },
         });
         this.logger.error(`Upload cleanup failed for ${intent.id}`, error);

@@ -15,6 +15,7 @@ import { MediaUrlSigner, type MediaVariant } from './media-url.signer';
 
 export interface PhotoForMedia {
   id: string;
+  tenantId: string;
   albumId: string;
   key: string;
   thumbKey: string | null;
@@ -64,7 +65,10 @@ export class MediaService {
   }
 
   async urlForVariant(
-    photo: Pick<PhotoForMedia, 'id' | 'key' | 'previewKey' | 'thumbKey'>,
+    photo: Pick<
+      PhotoForMedia,
+      'id' | 'tenantId' | 'key' | 'previewKey' | 'thumbKey'
+    >,
     variant: MediaVariant,
   ): Promise<string | null> {
     const key = this.keyForVariant(photo, variant);
@@ -77,12 +81,20 @@ export class MediaService {
     }
 
     const expires = Math.floor(Date.now() / 1000) + this.urlTtlSeconds;
-    const signature = this.signer.sign(photo.id, variant, expires);
-    return `/api/media/photos/${encodeURIComponent(photo.id)}/${variant}?expires=${expires}&signature=${signature}`;
+    const signature = this.signer.sign(
+      photo.tenantId,
+      photo.id,
+      variant,
+      expires,
+    );
+    return `/api/media/tenants/${encodeURIComponent(photo.tenantId)}/photos/${encodeURIComponent(photo.id)}/${variant}?expires=${expires}&signature=${signature}`;
   }
 
   async urlForBestVariant(
-    photo: Pick<PhotoForMedia, 'id' | 'key' | 'previewKey' | 'thumbKey'>,
+    photo: Pick<
+      PhotoForMedia,
+      'id' | 'tenantId' | 'key' | 'previewKey' | 'thumbKey'
+    >,
     variants: readonly MediaVariant[],
   ): Promise<string> {
     for (const variant of variants) {
@@ -107,12 +119,14 @@ export class MediaService {
   }
 
   async resolveSignedMedia(
+    tenantId: string,
     photoId: string,
     variantRaw: string,
     expiresRaw: string | undefined,
     signatureRaw: string | undefined,
   ): Promise<{ expires: number; object: StoredObject }> {
     const signed = this.signer.verify(
+      tenantId,
       photoId,
       variantRaw,
       expiresRaw,
@@ -120,8 +134,8 @@ export class MediaService {
     );
     if (!signed) throw new ForbiddenException('Invalid or expired media URL');
 
-    const photo = await this.prisma.photo.findUnique({
-      where: { id: photoId },
+    const photo = await this.prisma.photo.findFirst({
+      where: { id: photoId, tenantId },
     });
     if (!photo) throw new NotFoundException('Photo not found');
     const key = this.keyForVariant(photo, signed.variant);

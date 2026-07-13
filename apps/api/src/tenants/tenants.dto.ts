@@ -1,0 +1,16 @@
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import { TENANT_SLUG_PATTERN } from './tenant.constants';
+
+export class CreateTenantDto {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/\S/)
+  @MaxLength(100)
+  name: string;
+
+  @IsString()
+  @Matches(TENANT_SLUG_PATTERN, {
+    message: 'slug must be 3-30 lowercase letters, numbers, or underscores',
+  })
+  slug: string;
+}

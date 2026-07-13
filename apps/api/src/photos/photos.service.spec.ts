@@ -15,13 +15,21 @@ import {
 import type { MediaService } from '../media/media.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { InMemoryStorage } from '../storage/testing/in-memory.storage';
+import type { TenantContext } from '../tenants/tenant-context';
 import { PhotosService } from './photos.service';
 
 const now = new Date();
+const tenant: TenantContext = {
+  id: 'tenant-1',
+  mode: 'multi',
+  slug: 'tenant_one',
+  status: 'ACTIVE',
+};
 const baseIntent: UploadIntent = {
   id: 'upload-1',
-  key: 'photos/album-1/upload-1/original',
+  key: 'tenants/tenant-1/photos/album-1/upload-1/original',
   albumId: 'album-1',
+  tenantId: tenant.id,
   expectedMimeType: 'image/png',
   expectedSize: 5,
   status: UploadIntentStatus.PENDING,
@@ -33,6 +41,7 @@ const baseIntent: UploadIntent = {
 const photo: Photo = {
   id: 'photo-1',
   albumId: 'album-1',
+  tenantId: tenant.id,
   key: baseIntent.key,
   thumbKey: `${baseIntent.key}.thumb.webp`,
   previewKey: `${baseIntent.key}.preview.webp`,
@@ -49,13 +58,17 @@ function setup(options: { direct?: boolean; storage?: InMemoryStorage } = {}) {
     options.storage ?? new InMemoryStorage(Boolean(options.direct));
   let uploadIntentCreateInput: unknown;
   const prisma = {
-    album: { findUnique: jest.fn().mockResolvedValue({ id: 'album-1' }) },
+    album: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue({ id: 'album-1', tenantId: tenant.id }),
+    },
     uploadIntent: {
       create: jest.fn((input: unknown) => {
         uploadIntentCreateInput = input;
         return Promise.resolve(baseIntent);
       }),
-      findUnique: jest.fn().mockResolvedValue(baseIntent),
+      findFirst: jest.fn().mockResolvedValue(baseIntent),
       update: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([]),
@@ -65,7 +78,7 @@ function setup(options: { direct?: boolean; storage?: InMemoryStorage } = {}) {
       create: jest.fn(),
       delete: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
     $transaction: jest.fn(),
@@ -100,7 +113,7 @@ describe('PhotosService upload intents', () => {
   it('creates a proxy intent with a server-owned key', async () => {
     const { getUploadIntentCreateInput, service } = setup();
 
-    const result = await service.createUpload({
+    const result = await service.createUpload(tenant, {
       albumId: 'album-1',
       contentType: 'image/png',
       size: 5,
@@ -113,13 +126,15 @@ describe('PhotosService upload intents', () => {
       | { data: { albumId: string; key: string } }
       | undefined;
     expect(createInput?.data.albumId).toBe('album-1');
-    expect(createInput?.data.key).toMatch(/^photos\/album-1\/.+\/original$/);
+    expect(createInput?.data.key).toMatch(
+      /^tenants\/tenant-1\/photos\/album-1\/.+\/original$/,
+    );
   });
 
   it('creates a direct intent using the storage capability', async () => {
     const { service } = setup({ direct: true });
 
-    const result = await service.createUpload({
+    const result = await service.createUpload(tenant, {
       albumId: 'album-1',
       contentType: 'image/png',
       size: 5,
@@ -133,7 +148,7 @@ describe('PhotosService upload intents', () => {
     const { prisma, service } = setup();
 
     await expect(
-      service.createUpload({
+      service.createUpload(tenant, {
         albumId: 'album-1',
         contentType: 'image/png',
         size: 1025,
@@ -148,6 +163,7 @@ describe('PhotosService upload intents', () => {
 
     await expect(
       service.uploadContent(
+        tenant,
         baseIntent.id,
         Readable.from([Buffer.alloc(6)]),
         'image/png',
@@ -160,15 +176,15 @@ describe('PhotosService upload intents', () => {
 
   it('expires stale intents and removes their known objects', async () => {
     const { prisma, service, storage } = setup();
-    prisma.uploadIntent.findUnique.mockResolvedValue({
+    prisma.uploadIntent.findFirst.mockResolvedValue({
       ...baseIntent,
       expiresAt: new Date(Date.now() - 1000),
     });
     const deleteSpy = jest.spyOn(storage, 'delete');
 
-    await expect(service.confirmUpload(baseIntent.id)).rejects.toBeInstanceOf(
-      GoneException,
-    );
+    await expect(
+      service.confirmUpload(tenant, baseIntent.id),
+    ).rejects.toBeInstanceOf(GoneException);
     expect(deleteSpy).toHaveBeenCalledTimes(3);
   });
 
@@ -179,7 +195,7 @@ describe('PhotosService upload intents', () => {
       contentType: 'image/png',
     });
 
-    await expect(service.confirmUpload(baseIntent.id)).rejects.toThrow(
+    await expect(service.confirmUpload(tenant, baseIntent.id)).rejects.toThrow(
       'size does not match',
     );
     expect(prisma.photo.create).not.toHaveBeenCalled();
@@ -193,26 +209,26 @@ describe('PhotosService upload intents', () => {
       contentType: 'image/png',
     });
 
-    await expect(service.confirmUpload(baseIntent.id)).rejects.toBeInstanceOf(
-      UnsupportedMediaTypeException,
-    );
+    await expect(
+      service.confirmUpload(tenant, baseIntent.id),
+    ).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
     expect(prisma.photo.create).not.toHaveBeenCalled();
     expect(storage.objects.has(baseIntent.key)).toBe(false);
   });
 
   it('returns the existing photo for repeated confirmation', async () => {
     const { media, prisma, service, storage } = setup();
-    prisma.uploadIntent.findUnique.mockResolvedValue({
+    prisma.uploadIntent.findFirst.mockResolvedValue({
       ...baseIntent,
       status: UploadIntentStatus.CONFIRMED,
       photoId: photo.id,
     });
-    prisma.photo.findUnique.mockResolvedValue(photo);
+    prisma.photo.findFirst.mockResolvedValue(photo);
     const statSpy = jest.spyOn(storage, 'stat');
 
-    await expect(service.confirmUpload(baseIntent.id)).resolves.toMatchObject({
-      id: photo.id,
-    });
+    await expect(
+      service.confirmUpload(tenant, baseIntent.id),
+    ).resolves.toMatchObject({ id: photo.id });
     expect(media.serializePhoto).toHaveBeenCalledWith(photo);
     expect(statSpy).not.toHaveBeenCalled();
   });
@@ -223,12 +239,12 @@ describe('PhotosService upload intents', () => {
       .mockResolvedValueOnce([baseIntent])
       .mockResolvedValueOnce([]);
 
-    await expect(service.cleanupExpiredUploads()).resolves.toEqual({
+    await expect(service.cleanupExpiredUploads(tenant)).resolves.toEqual({
       processed: 1,
       expired: 1,
       failed: 0,
     });
-    await expect(service.cleanupExpiredUploads()).resolves.toEqual({
+    await expect(service.cleanupExpiredUploads(tenant)).resolves.toEqual({
       processed: 0,
       expired: 0,
       failed: 0,
@@ -243,18 +259,18 @@ describe('PhotosService upload intents', () => {
       .spyOn(storage, 'delete')
       .mockRejectedValueOnce(new Error('temporary filesystem error'));
 
-    await expect(service.cleanupExpiredUploads()).resolves.toEqual({
+    await expect(service.cleanupExpiredUploads(tenant)).resolves.toEqual({
       processed: 1,
       expired: 0,
       failed: 1,
     });
-    await expect(service.cleanupExpiredUploads()).resolves.toEqual({
+    await expect(service.cleanupExpiredUploads(tenant)).resolves.toEqual({
       processed: 1,
       expired: 1,
       failed: 0,
     });
-    expect(prisma.uploadIntent.update).toHaveBeenLastCalledWith({
-      where: { id: baseIntent.id },
+    expect(prisma.uploadIntent.updateMany).toHaveBeenLastCalledWith({
+      where: { id: baseIntent.id, tenantId: tenant.id },
       data: { status: UploadIntentStatus.EXPIRED },
     });
     logger.mockRestore();

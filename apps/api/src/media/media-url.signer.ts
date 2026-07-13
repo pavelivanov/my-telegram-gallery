@@ -18,20 +18,29 @@ export class MediaUrlSigner {
   }
 
   private signature(
+    tenantId: string,
     photoId: string,
     variant: MediaVariant,
     expires: number,
   ): Buffer {
     return createHmac('sha256', this.secret)
-      .update(`${photoId}\n${variant}\n${expires}`)
+      .update(`${tenantId}\n${photoId}\n${variant}\n${expires}`)
       .digest();
   }
 
-  sign(photoId: string, variant: MediaVariant, expires: number): string {
-    return this.signature(photoId, variant, expires).toString('base64url');
+  sign(
+    tenantId: string,
+    photoId: string,
+    variant: MediaVariant,
+    expires: number,
+  ): string {
+    return this.signature(tenantId, photoId, variant, expires).toString(
+      'base64url',
+    );
   }
 
   verify(
+    tenantId: string,
     photoId: string,
     variantRaw: string,
     expiresRaw: string | undefined,
@@ -51,7 +60,7 @@ export class MediaUrlSigner {
     if (!Number.isSafeInteger(expires) || expires <= now) return null;
 
     const received = Buffer.from(signatureRaw, 'base64url');
-    const expected = this.signature(photoId, variantRaw, expires);
+    const expected = this.signature(tenantId, photoId, variantRaw, expires);
     if (
       received.length !== expected.length ||
       !timingSafeEqual(received, expected)

@@ -1,10 +1,14 @@
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import sharp from 'sharp';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
+import { validateEnv } from '../src/config/env';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { createTelegramInitData } from './helpers/telegram-init-data';
 
 interface AlbumResponseBody {
@@ -151,8 +155,8 @@ describe('Application (e2e)', () => {
     expect(confirmBody.size).toBe(image.length);
     expect(confirmBody.width).toBe(2);
     expect(confirmBody.height).toBe(2);
-    expect(confirmBody.url).toMatch(/^\/api\/media\/photos\//);
-    expect(confirmBody.thumbUrl).toMatch(/^\/api\/media\/photos\//);
+    expect(confirmBody.url).toMatch(/^\/api\/media\/tenants\//);
+    expect(confirmBody.thumbUrl).toMatch(/^\/api\/media\/tenants\//);
     expect(JSON.stringify(confirmBody)).not.toContain('photos/album');
 
     const album = await request(app.getHttpServer())
@@ -236,5 +240,367 @@ describe('Application (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+});
+
+interface TenantResponseBody {
+  id: string;
+  name: string;
+  plan: string;
+  slug: string;
+  status: string;
+}
+
+describe('Tenant isolation (e2e)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaService;
+  let alpha: TenantResponseBody;
+  let beta: TenantResponseBody;
+  let alphaAlbum: AlbumResponseBody;
+  let betaAlbum: AlbumResponseBody;
+
+  function authorization(userId: number, startParam?: string): string {
+    return `tma ${createTelegramInitData({
+      botToken: process.env.TELEGRAM_BOT_TOKEN!,
+      startParam,
+      user: { id: userId, first_name: `User ${userId}` },
+    })}`;
+  }
+
+  beforeAll(async () => {
+    const multiEnvironment = validateEnv({
+      ...process.env,
+      ADMIN_TG_ID: '',
+      ADMIN_TG_IDS: '',
+      TENANCY_MODE: 'multi',
+    });
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider(ConfigService)
+      .useValue(new ConfigService(multiEnvironment))
+      .compile();
+    app = moduleRef.createNestApplication();
+    configureApp(app);
+    await app.init();
+    prisma = app.get(PrismaService);
+  });
+
+  it('onboards independent owners without serializing Telegram BigInts', async () => {
+    const alphaResponse = await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization(101))
+      .send({ name: 'Alpha Gallery', slug: 'alpha_gallery' })
+      .expect(201);
+    alpha = alphaResponse.body as TenantResponseBody;
+
+    const betaResponse = await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization(202))
+      .send({ name: 'Beta Gallery', slug: 'beta_gallery' })
+      .expect(201);
+    beta = betaResponse.body as TenantResponseBody;
+
+    expect(alpha).toMatchObject({
+      name: 'Alpha Gallery',
+      plan: 'free',
+      slug: 'alpha_gallery',
+      status: 'active',
+    });
+    expect(JSON.stringify(alphaResponse.body)).not.toContain('101');
+
+    await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization(202))
+      .send({ name: 'Duplicate', slug: 'alpha_gallery' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization(101))
+      .send({ name: 'Reserved', slug: 'admin' })
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .get('/api/tenants')
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual([
+          expect.objectContaining({ id: alpha.id }),
+        ]);
+      });
+
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set('Authorization', authorization(303))
+      .expect(404);
+  });
+
+  it('keeps selectors separate from owner authorization and scopes albums', async () => {
+    const alphaAlbumResponse = await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ name: 'Alpha album' })
+      .expect(201);
+    alphaAlbum = alphaAlbumResponse.body as AlbumResponseBody;
+
+    await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ name: 'Unauthorized album' })
+      .expect(403);
+
+    const betaAlbumResponse = await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .send({ name: 'Beta album' })
+      .expect(201);
+    betaAlbum = betaAlbumResponse.body as AlbumResponseBody;
+
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(200)
+      .expect((response) => {
+        const ids = (response.body as AlbumResponseBody[]).map(({ id }) => id);
+        expect(ids).toContain(alphaAlbum.id);
+        expect(ids).not.toContain(betaAlbum.id);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/api/albums/${alphaAlbum.id}`)
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', beta.slug)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .post('/api/photos/upload')
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .send({
+        albumId: alphaAlbum.id,
+        contentType: 'image/png',
+        size: 100,
+      })
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(202, `tenant_${alpha.slug}`))
+      .send({ name: 'Start param is not authorization' })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get(`/api/albums/${alphaAlbum.id}`)
+      .set('Authorization', authorization(303, `album_${alphaAlbum.id}`))
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          id: alphaAlbum.id,
+          tenantSlug: alpha.slug,
+        });
+      });
+  });
+
+  it('isolates object keys, upload flows, signed media, deletes, and constraints', async () => {
+    const image = await sharp({
+      create: {
+        width: 2,
+        height: 2,
+        channels: 3,
+        background: '#aa5500',
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const alphaIntentResponse = await request(app.getHttpServer())
+      .post('/api/photos/upload')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({
+        albumId: alphaAlbum.id,
+        contentType: 'image/png',
+        size: image.length,
+      })
+      .expect(201);
+    const alphaIntent = alphaIntentResponse.body as UploadIntentResponseBody;
+    const storedIntent = await prisma.uploadIntent.findUnique({
+      where: { id: alphaIntent.uploadId },
+    });
+    expect(storedIntent?.key).toMatch(
+      new RegExp(`^tenants/${alpha.id}/photos/${alphaAlbum.id}/`),
+    );
+
+    await request(app.getHttpServer())
+      .put(alphaIntent.uploadUrl)
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .set('Content-Type', 'image/png')
+      .send(image)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/api/photos/confirm')
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .send({ uploadId: alphaIntent.uploadId })
+      .expect(404);
+
+    const confirmedResponse = await request(app.getHttpServer())
+      .post('/api/photos/confirm')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ uploadId: alphaIntent.uploadId })
+      .expect(201);
+    const confirmed = confirmedResponse.body as PhotoResponseBody;
+    const signedUrl = new URL(confirmed.url, 'http://localhost');
+    await request(app.getHttpServer())
+      .get(`${signedUrl.pathname}${signedUrl.search}`)
+      .expect(200);
+
+    const tamperedPath = signedUrl.pathname.replace(alpha.id, beta.id);
+    await request(app.getHttpServer())
+      .get(`${tamperedPath}${signedUrl.search}`)
+      .expect(403);
+
+    const betaIntentResponse = await request(app.getHttpServer())
+      .post('/api/photos/upload')
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .send({
+        albumId: betaAlbum.id,
+        contentType: 'image/png',
+        size: image.length,
+      })
+      .expect(201);
+    const betaIntent = betaIntentResponse.body as UploadIntentResponseBody;
+    expect(
+      (
+        await prisma.uploadIntent.findUnique({
+          where: { id: betaIntent.uploadId },
+        })
+      )?.key,
+    ).toMatch(new RegExp(`^tenants/${beta.id}/photos/${betaAlbum.id}/`));
+    await request(app.getHttpServer())
+      .put(betaIntent.uploadUrl)
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .set('Content-Type', 'image/png')
+      .send(image)
+      .expect(200);
+    const betaConfirmedResponse = await request(app.getHttpServer())
+      .post('/api/photos/confirm')
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .send({ uploadId: betaIntent.uploadId })
+      .expect(201);
+    const betaConfirmed = betaConfirmedResponse.body as PhotoResponseBody;
+
+    await request(app.getHttpServer())
+      .get('/api/photos')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(200)
+      .expect((response) => {
+        const ids = (response.body as PhotoResponseBody[]).map(({ id }) => id);
+        expect(ids).toContain(confirmed.id);
+        expect(ids).not.toContain(betaConfirmed.id);
+      });
+    await request(app.getHttpServer())
+      .get('/api/photos')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', beta.slug)
+      .expect(200)
+      .expect((response) => {
+        const ids = (response.body as PhotoResponseBody[]).map(({ id }) => id);
+        expect(ids).toContain(betaConfirmed.id);
+        expect(ids).not.toContain(confirmed.id);
+      });
+
+    await prisma.photo.update({
+      where: { id: betaConfirmed.id },
+      data: { previewKey: null, thumbKey: null },
+    });
+    await request(app.getHttpServer())
+      .post('/api/photos/backfill-thumbs')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(201);
+    expect(
+      await prisma.photo.findUnique({ where: { id: betaConfirmed.id } }),
+    ).toMatchObject({ previewKey: null, thumbKey: null });
+    await request(app.getHttpServer())
+      .post('/api/photos/backfill-thumbs')
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .expect(201);
+    const backfilledBeta = await prisma.photo.findUnique({
+      where: { id: betaConfirmed.id },
+    });
+    expect(typeof backfilledBeta?.previewKey).toBe('string');
+    expect(typeof backfilledBeta?.thumbKey).toBe('string');
+
+    await request(app.getHttpServer())
+      .put(`/api/albums/${alphaAlbum.id}/order`)
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .send({ photoIds: [confirmed.id] })
+      .expect(404);
+    await request(app.getHttpServer())
+      .put(`/api/albums/${alphaAlbum.id}/order`)
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ photoIds: [confirmed.id] })
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`/api/photos/${confirmed.id}`)
+      .set('Authorization', authorization(202))
+      .set('X-Tenant-Slug', beta.slug)
+      .expect(404);
+
+    await expect(
+      prisma.photo.create({
+        data: {
+          albumId: alphaAlbum.id,
+          tenantId: beta.id,
+          key: 'tenants/constraint-test/cross-tenant-original',
+          mimeType: 'image/png',
+          size: 1,
+        },
+      }),
+    ).rejects.toBeDefined();
+  });
+
+  it('hides suspended galleries while giving their owner a clear denial', async () => {
+    await prisma.tenant.update({
+      where: { id: alpha.id },
+      data: { status: 'SUSPENDED' },
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ name: 'Suspended write' })
+      .expect(403)
+      .expect(/Tenant is suspended/);
+
+    await prisma.tenant.update({
+      where: { id: alpha.id },
+      data: { status: 'ACTIVE' },
+    });
+  });
+
+  afterAll(async () => {
+    await app?.close();
   });
 });
