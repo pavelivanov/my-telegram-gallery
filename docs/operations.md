@@ -66,6 +66,8 @@ Recommended launch schedules:
 
 - upload cleanup every 15 minutes;
 - usage dry-run every hour and after storage incidents or migrations;
+- billing expiry every hour, with a second apply proving idempotence;
+- billing reconciliation every hour and after webhook/payment incidents;
 - a deliberate usage `--apply` only after an operator reviews the drift event.
 
 Use host cron with `flock` for Compose or one Railway cron service per command.
@@ -126,6 +128,8 @@ docker compose exec -T -e OPS_TOKEN app node dist/src/ops-cli \
   report resolve --report REPORT_ID --note "Reviewed and resolved"
 docker compose exec -T -e OPS_TOKEN app node dist/src/ops-cli \
   tenant unsuspend --tenant TENANT_SLUG --reason "Review complete"
+docker compose exec -T -e OPS_TOKEN app node dist/src/ops-cli \
+  payment refund --payment BILLING_PAYMENT_ID --reason "Approved support case"
 ```
 
 Suspend/unsuspend and resolve/dismiss actions write `OperatorAudit` rows with
@@ -148,6 +152,9 @@ cannot inspect reporter detail or resolve reports.
   public access creates material risk.
 - **Database or media loss:** do not improvise counter repair. Follow the tested
   restore procedure in [backups.md](backups.md).
+- **Payment mismatch:** pause new checkout if scope is unknown, preserve billing
+  rows and webhook status, then follow [billing.md](billing.md). Never infer Pro
+  from an invoice-close callback.
 
 ## Staging launch checklist
 
@@ -161,6 +168,8 @@ cannot inspect reporter detail or resolve reports.
 - [ ] `TRUST_PROXY_HOPS` matches the observed topology.
 - [ ] Exactly one app replica is configured while throttling is in memory.
 - [ ] Abuse contact and appeal path are published.
+- [ ] Telegram test-environment billing checklist passes with approved product
+      and support inputs; the production webhook remains unset until launch.
 
 The repository rehearses migrations, cleanup idempotence, usage idempotence,
 rate limits, reports, and operator audit behavior against disposable PostgreSQL

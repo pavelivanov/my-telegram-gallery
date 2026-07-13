@@ -21,4 +21,5 @@ apps/api/generated/
 coverage/
 
 .playwright-mcp
+.playwright-cli/
 .claude

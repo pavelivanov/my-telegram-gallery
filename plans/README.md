@@ -64,7 +64,7 @@ Change:
 | [003](003-package-a-single-origin-self-hosted-edition.md) | One-image single-origin self-host edition | P0 | L | 002 | DONE |
 | [004](004-add-tenant-isolation-and-onboarding.md) | Tenant isolation and onboarding | P1 | L | 003 | DONE |
 | [005](005-enforce-quotas-abuse-controls-and-operations.md) | Quotas, abuse controls, and operations | P1 | L | 004 | DONE |
-| [006](006-add-telegram-stars-billing.md) | Telegram Stars subscriptions | P1 | L | 005 | TODO |
+| [006](006-add-telegram-stars-billing.md) | Telegram Stars subscriptions | P1 | L | 005 | IN PROGRESS |
 | [007](007-license-publish-and-launch-distribution.md) | License, publish, templates, and launch | P1/P2 | L | 003 self-host; 006 SaaS | TODO |
 
 Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reason>)`.

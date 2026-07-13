@@ -4,6 +4,11 @@ A backup is complete only after PostgreSQL and media can be restored together.
 The database owns object keys and tenant usage state; media without its matching
 database snapshot (or vice versa) is not a usable gallery backup.
 
+Billing checkouts, immutable payment history, subscription periods, processed
+Telegram update IDs, and operator refund audits live in PostgreSQL. Losing those
+rows can duplicate entitlement or make a legitimate refund unsafe, so billing
+must never be reconstructed from frontend state or current tenant plan alone.
+
 ## Ownership and policy
 
 The service operator owns PostgreSQL, media, and configuration backups. Use an
@@ -58,12 +63,14 @@ database and media volume/bucket with no public ingress, then:
 4. Start the exact recorded image with the restored database/media and separate
    test bot credentials. Do not reuse the production bot token.
 5. Confirm migrations, `/api/health/ready`, tenant counts, random original and
-   variant media reads, and owner/gallery access.
+   variant media reads, owner/gallery access, and billing/payment row counts.
 6. Run usage reconciliation dry-run. Zero drift is required; missing objects or
    an incomplete scan fails the drill.
-7. Record restore start/end time, recovery point, object/sample counts, failures,
+7. Run billing reconciliation. Resolve every discrepancy before the drill can
+   pass; do not call Telegram refund/cancel methods from the isolated restore.
+8. Record restore start/end time, recovery point, object/sample counts, failures,
    remediation owner, and next drill date.
-8. Destroy the disposable environment and securely remove decrypted copies.
+9. Destroy the disposable environment and securely remove decrypted copies.
 
 For a Compose-shaped disposable database, the core restore command is:
 
