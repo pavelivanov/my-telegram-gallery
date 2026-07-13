@@ -22,6 +22,7 @@ if (import.meta.env.DEV) {
     } as const;
     const noInsets = { left: 0, top: 0, bottom: 0, right: 0 } as const;
     const configuredInitData: unknown = import.meta.env.VITE_MOCK_INIT_DATA;
+    const configuredStartParam: unknown = import.meta.env.VITE_MOCK_START_PARAM;
     const mockInitData = typeof configuredInitData === 'string' && configuredInitData
       ? configuredInitData
       : new URLSearchParams([
@@ -60,6 +61,9 @@ if (import.meta.env.DEV) {
         tgWebAppData: new URLSearchParams(mockInitData),
         tgWebAppVersion: '8',
         tgWebAppPlatform: 'tdesktop',
+        ...(typeof configuredStartParam === 'string' && configuredStartParam
+          ? { tgWebAppStartParam: configuredStartParam }
+          : {}),
       },
     });
 

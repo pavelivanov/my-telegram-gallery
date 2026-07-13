@@ -11,12 +11,17 @@ export function apiUrl(pathOrUrl: string): string {
   return `${BASE}${path}`;
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function api<T>(
+  path: string,
+  init?: RequestInit,
+  tenantSlug?: string,
+): Promise<T> {
   const res = await fetch(apiUrl(`/api${path}`), {
     ...init,
     headers: {
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `tma ${retrieveRawInitData()}`,
+      ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
       ...init?.headers,
     },
   });

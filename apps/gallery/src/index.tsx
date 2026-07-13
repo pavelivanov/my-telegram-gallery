@@ -16,6 +16,7 @@ const root = ReactDOM.createRoot(document.getElementById('root')!);
 try {
   const launchParams = retrieveLaunchParams();
   const { tgWebAppPlatform: platform } = launchParams;
+  const startParam = launchParams.tgWebAppStartParam;
   const debug = (launchParams.tgWebAppStartParam || '').includes('debug')
     || import.meta.env.DEV;
 
@@ -24,7 +25,7 @@ try {
   // URL hash, which HashRouter would treat as an unknown route and replace
   // with "/" via the catch-all redirect.
   const startMatch = /^album_([\w-]+)$/.exec(
-    launchParams.tgWebAppStartParam || '',
+    startParam || '',
   );
   if (startMatch) {
     window.location.hash = `#/albums/${startMatch[1]}`;
@@ -38,7 +39,7 @@ try {
   });
   root.render(
     <StrictMode>
-      <Root/>
+      <Root startParam={startParam}/>
     </StrictMode>,
   );
 } catch {

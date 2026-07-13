@@ -1,16 +1,34 @@
 import { useQuery } from '@tanstack/react-query';
-import { type FC } from 'react';
+import { useState, type FC } from 'react';
 import { Link } from 'react-router-dom';
 
 import { api } from '@/api/client';
+import { buildGalleryHomeLink } from '@/api/publicConfig';
 import type { Album } from '@/api/types';
+import { useGalleryWorkspace } from '@/components/GalleryWorkspace';
 import { Page } from '@/components/Page';
 
 export const AlbumsPage: FC = () => {
+  const { config, tenantKey, tenantSlug } = useGalleryWorkspace();
+  const [copied, setCopied] = useState(false);
   const { data: albums, error } = useQuery({
-    queryKey: ['albums'],
-    queryFn: () => api<Album[]>('/albums'),
+    queryKey: ['tenant', tenantKey, 'albums'],
+    queryFn: () => api<Album[]>('/albums', undefined, tenantSlug ?? undefined),
   });
+  const shareLink = tenantSlug
+    ? buildGalleryHomeLink(config, tenantSlug)
+    : null;
+
+  const copyLink = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable — leave the gallery usable.
+    }
+  };
 
   return (
     <Page back={false}>
@@ -18,9 +36,18 @@ export const AlbumsPage: FC = () => {
         <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
           the collection
         </span>
-        <h1 className="mt-2 font-display text-[34px] leading-none">
-          Gallery
-        </h1>
+        <div className="mt-2 flex items-center justify-between gap-4">
+          <h1 className="font-display text-[34px] leading-none">Gallery</h1>
+          {shareLink ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-full bg-ink/10 px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-opacity active:opacity-60"
+              onClick={() => void copyLink()}
+            >
+              {copied ? '✓ Copied' : 'Share'}
+            </button>
+          ) : null}
+        </div>
         {albums && albums.length > 0 && (
           <p className="mt-3 text-[13px] text-ink-dim">
             {albums.length} {albums.length === 1 ? 'album' : 'albums'} ·{' '}

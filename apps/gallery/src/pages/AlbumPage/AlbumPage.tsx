@@ -1,13 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FC } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { api } from '@/api/client';
 import {
   buildGalleryAlbumLink,
-  usePublicConfig,
 } from '@/api/publicConfig';
 import type { AlbumDetail } from '@/api/types';
+import { useGalleryWorkspace } from '@/components/GalleryWorkspace';
 import { Page } from '@/components/Page';
 import { PhotoViewer } from '@/components/PhotoViewer/PhotoViewer';
 import { ErrorNote, Loading } from '@/pages/AlbumsPage/AlbumsPage';
@@ -26,18 +26,27 @@ function preloadImage(src: string): Promise<void> {
 
 export const AlbumPage: FC = () => {
   const { id = '' } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const { config, learnTenant, tenantKey, tenantSlug } = useGalleryWorkspace();
   const { data: album, error } = useQuery({
-    queryKey: ['albums', id],
-    queryFn: () => api<AlbumDetail>(`/albums/${id}`),
+    queryKey: ['tenant', tenantKey, 'albums', id],
+    queryFn: () =>
+      api<AlbumDetail>(`/albums/${id}`, undefined, tenantSlug ?? undefined),
   });
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
-  const publicConfig = usePublicConfig();
 
   // Deep link into this album (handled by StartParamRedirect on launch).
-  const shareLink = publicConfig
-    ? buildGalleryAlbumLink(publicConfig, id)
-    : null;
+  const shareLink = buildGalleryAlbumLink(config, id);
+
+  useEffect(() => {
+    if (!album || tenantSlug === album.tenantSlug) return;
+    queryClient.setQueryData(
+      ['tenant', album.tenantSlug, 'albums', id],
+      album,
+    );
+    learnTenant(album.tenantSlug);
+  }, [album, id, learnTenant, queryClient, tenantSlug]);
 
   const copyLink = async () => {
     if (!shareLink) return;

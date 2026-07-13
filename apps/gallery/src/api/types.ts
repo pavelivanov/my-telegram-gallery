@@ -5,11 +5,11 @@ export interface Album {
   photoCount: number;
   coverUrl: string | null;
   coverThumbUrl: string | null;
+  tenantSlug: string;
 }
 
 export interface Photo {
   id: string;
-  key: string;
   mimeType: string;
   size: number;
   width: number | null;
@@ -24,5 +24,6 @@ export interface AlbumDetail {
   id: string;
   name: string;
   createdAt: string;
+  tenantSlug: string;
   photos: Photo[];
 }

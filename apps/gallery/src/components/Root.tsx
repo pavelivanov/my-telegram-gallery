@@ -34,11 +34,11 @@ function ErrorBoundaryError({ error }: { error: unknown }) {
   );
 }
 
-export function Root() {
+export function Root({ startParam }: { startParam?: string }) {
   return (
     <ErrorBoundary fallback={ErrorBoundaryError}>
       <QueryClientProvider client={queryClient}>
-        <App/>
+        <App startParam={startParam}/>
       </QueryClientProvider>
     </ErrorBoundary>
   );
