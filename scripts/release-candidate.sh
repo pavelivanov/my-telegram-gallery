@@ -50,6 +50,7 @@ fi
 
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
+RUN_STARTED="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
 pnpm install --frozen-lockfile
 pnpm audit:dependencies
@@ -128,11 +129,25 @@ jq -n \
   --arg version "$VERSION" \
   '{created: $created, image: $image, imageId: $imageId, platform: $platform, revision: $revision, source: $source, tools: {gitleaks: $gitleaks, grype: $grype, syft: $syft}, version: $version}' \
   > "$OUTPUT_DIR/metadata.json"
+RUN_FINISHED="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+bash scripts/write-local-provenance.sh \
+  "$OUTPUT_DIR/provenance.intoto.json" \
+  "$OUTPUT_DIR/image.tar.gz" \
+  "$OUTPUT_DIR/metadata.json" \
+  scripts/release-candidate.sh \
+  "$RUN_STARTED" \
+  "$RUN_FINISHED"
+bash scripts/verify-local-provenance.sh \
+  "$OUTPUT_DIR/provenance.intoto.json" \
+  "$OUTPUT_DIR/image.tar.gz" \
+  "$OUTPUT_DIR/metadata.json" \
+  scripts/release-candidate.sh
 
 (
   cd "$OUTPUT_DIR"
   shasum -a 256 artifact-secrets.json image.tar.gz licenses.json \
-    metadata.json sbom.cdx.json vulnerabilities.json > SHA256SUMS
+    metadata.json provenance.intoto.json sbom.cdx.json vulnerabilities.json \
+    > SHA256SUMS
 )
 
 echo "Release candidate created in $OUTPUT_DIR for revision $REVISION."

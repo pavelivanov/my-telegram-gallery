@@ -29,6 +29,12 @@ identifiers.
   each; its high threshold passed. Both saved archives produced zero Gitleaks
   findings with archive recursion enabled, and all per-platform checksums
   verified after reload and smoke.
+- Each candidate archive now receives an unsigned in-toto Statement v1 with a
+  SLSA provenance v1 predicate. Local verification binds its archive digest,
+  parameters, source revision, and build script to the checksummed evidence.
+  Because the same local process emits the artifact and statement, this closes
+  the traceability-format gap but does not satisfy trusted-builder, signing, or
+  publisher-identity gates.
 - Production dependency metadata reports MIT, Apache-2.0, ISC,
   BSD-2-Clause, BSD-3-Clause, 0BSD, Unlicense, and LGPL-3.0-or-later entries.
 - Git history currently uses one author name/email identity. This does not prove

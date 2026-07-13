@@ -71,6 +71,7 @@ for platform in "${platforms[@]}"; do
   image="my-telegram-gallery:platform-$architecture"
   platform_output="$OUTPUT_DIR/$architecture"
   mkdir -p "$platform_output"
+  platform_started="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
   docker buildx build --pull --platform "$platform" --load \
     --build-arg "BUILD_CREATED=$CREATED" \
@@ -136,11 +137,24 @@ for platform in "${platforms[@]}"; do
     --arg version "$VERSION-$architecture" \
     '{architecture: $architecture, created: $created, emulated: $emulated, hostArchitecture: $hostArchitecture, image: $image, imageId: $imageId, platform: $platform, revision: $revision, source: $source, tools: {gitleaks: $gitleaks, grype: $grype, syft: $syft}, version: $version}' \
     > "$platform_output/metadata.json"
+  platform_finished="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  bash scripts/write-local-provenance.sh \
+    "$platform_output/provenance.intoto.json" \
+    "$platform_output/image.tar.gz" \
+    "$platform_output/metadata.json" \
+    scripts/verify-release-platforms.sh \
+    "$platform_started" \
+    "$platform_finished"
+  bash scripts/verify-local-provenance.sh \
+    "$platform_output/provenance.intoto.json" \
+    "$platform_output/image.tar.gz" \
+    "$platform_output/metadata.json" \
+    scripts/verify-release-platforms.sh
 
   (
     cd "$platform_output"
     shasum -a 256 artifact-secrets.json image.tar.gz metadata.json \
-      sbom.cdx.json vulnerabilities.json > SHA256SUMS
+      provenance.intoto.json sbom.cdx.json vulnerabilities.json > SHA256SUMS
   )
 
   docker image rm "$image" >/dev/null

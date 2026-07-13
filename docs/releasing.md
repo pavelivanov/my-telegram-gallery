@@ -38,17 +38,46 @@ The candidate command:
 6. creates production-license inventory and a CycloneDX image SBOM;
 7. fails on high/critical Grype image findings;
 8. saves the image and scans that archive for secrets;
-9. writes the image, metadata, reports, and `SHA256SUMS` under
+9. writes an unsigned SLSA provenance v1 statement for the saved image archive
+   and verifies its subject digest, build parameters, source revision, and local
+   builder identity;
+10. writes the image, metadata, provenance, reports, and `SHA256SUMS` under
    ignored `output/release/`.
 
 The manual GitHub workflow performs the same source gate and uploads the output
 as a private seven-day artifact. It has read-only repository permissions and no
 package, attestation, or identity-token permission.
 
-The candidate is traceable to an exact commit and checksummed artifact. A
-bit-for-bit reproducibility claim is not made while Alpine package indexes and
-scanner vulnerability databases remain time-varying. Pinning those inputs or
-documenting an approved reproducible-build exception remains a release gate.
+## Local release build type v1
+
+This section defines the build type referenced by local provenance statements:
+
+- `externalParameters.image` is the effective local Docker tag;
+- `externalParameters.platform` is the effective `linux/ARCH` target;
+- `externalParameters.version` is the validated release version passed to the
+  image label;
+- `internalParameters.created` is the effective OCI creation timestamp;
+- `resolvedDependencies` identifies the exact Git source revision;
+- the sole subject is the gzip-compressed Docker archive `image.tar.gz`.
+
+Invoke the build with `pnpm release:candidate`, or with
+`pnpm release:platforms` for the per-architecture variant, after setting
+`RELEASE_VERSION`. The referenced builder ID names the exact repository script
+and revision that ran the documented source, image, scan, archive, provenance,
+and verification sequence. The statement does not claim the local host or its
+operator is independently trusted.
+
+The candidate is traceable to an exact commit and checksummed artifact. Its
+`provenance.intoto.json` uses the in-toto Statement v1 envelope and SLSA
+provenance v1 predicate, but it is created by the same local process as the
+artifact and is deliberately unsigned. It is evidence for local review, not a
+trusted-builder, SLSA-level, or publisher-identity claim. Registry attestation
+and signing remain release gates.
+
+A bit-for-bit reproducibility claim is not made while Alpine package indexes
+and scanner vulnerability databases remain time-varying. Pinning those inputs
+or documenting an approved reproducible-build exception remains a release
+gate.
 
 ## Release-note template
 
@@ -114,9 +143,25 @@ Docker cannot load a multi-platform result into every local image store, so the
 script deliberately loops over `linux/amd64` and `linux/arm64` with one
 `buildx --load` operation per platform. It verifies native Sharp loading,
 generates a per-platform SBOM and vulnerability report, scans the saved archive
-for secrets, reloads the archive, confirms the image ID is unchanged, and runs
-Compose against that immutable ID. Evidence is written under ignored
-`output/platforms/`.
+for secrets, writes and verifies unsigned local provenance, reloads the archive,
+confirms the image ID is unchanged, and runs Compose against that immutable ID.
+Evidence is written under ignored `output/platforms/`.
+
+For either evidence directory, verify the checksum set and provenance after
+download or transfer:
+
+```bash
+cd output/release
+shasum -a 256 -c SHA256SUMS
+bash ../../scripts/verify-local-provenance.sh \
+  provenance.intoto.json image.tar.gz metadata.json \
+  scripts/release-candidate.sh
+```
+
+For a platform directory, use `scripts/verify-release-platforms.sh` as the last
+argument instead. This detects artifact or metadata drift, but an unsigned
+statement can still be replaced together with its checksum file; trusted
+identity verification requires the later approved signing flow.
 
 An emulated pass proves the architecture-specific Prisma/Sharp artifacts can
 execute, but does not replace the independent native clean-machine acceptance
