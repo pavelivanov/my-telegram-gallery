@@ -20,6 +20,9 @@ import { createRateLimitOptions } from './security/rate-limit';
 import { RateLimitModule } from './security/rate-limit.module';
 import { ReportsModule } from './reports/reports.module';
 import { OpsModule } from './ops/ops.module';
+import { TelegramModule } from './telegram/telegram.module';
+import { BillingModule } from './billing/billing.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -53,6 +56,9 @@ import { OpsModule } from './ops/ops.module';
     PrismaModule,
     QuotaModule,
     UsageModule,
+    TelegramModule,
+    BillingModule,
+    WebhooksModule,
     ReportsModule,
     OpsModule,
     StorageModule,

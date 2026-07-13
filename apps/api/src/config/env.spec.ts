@@ -43,6 +43,12 @@ describe('validateEnv', () => {
     expect(env.RATE_LIMIT_ADMIN).toBe(60);
     expect(env.RATE_LIMIT_UPLOAD).toBe(20);
     expect(env.RATE_LIMIT_REPORT).toBe(5);
+    expect(env.RATE_LIMIT_WEBHOOK).toBe(120);
+    expect(env.TELEGRAM_BOT_API_TEST_MODE).toBe(true);
+    expect(env.TELEGRAM_WEBHOOK_BODY_LIMIT_BYTES).toBe(64 * 1024);
+    expect(env.TELEGRAM_BOT_API_TIMEOUT_MS).toBe(5000);
+    expect(env.BILLING_CHECKOUT_TTL_SECONDS).toBe(900);
+    expect(env.BILLING_PRO_PRICE_STARS).toBeUndefined();
     expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
     expect(env.TENANCY_MODE).toBe('single');
   });
@@ -165,6 +171,22 @@ describe('validateEnv', () => {
     ['invalid body limit', { JSON_BODY_LIMIT_BYTES: '1000' }, 'between 1024'],
     ['invalid proxy hops', { TRUST_PROXY_HOPS: '4' }, 'between 0'],
     ['invalid rate limit', { RATE_LIMIT_REPORT: '0' }, 'between 1'],
+    ['invalid webhook limit', { RATE_LIMIT_WEBHOOK: '0' }, 'between 1'],
+    [
+      'invalid webhook secret',
+      { TELEGRAM_WEBHOOK_SECRET: 'too-short' },
+      '32-256',
+    ],
+    [
+      'invalid billing price',
+      { BILLING_PRO_PRICE_STARS: '10001' },
+      'between 1 and 10000',
+    ],
+    [
+      'non-https billing terms',
+      { BILLING_TERMS_URL: 'http://example.com/terms' },
+      'HTTPS URL',
+    ],
     ['invalid ops hash', { OPS_TOKEN_SHA256: 'not-a-hash' }, 'SHA-256'],
     ['invalid ops actor', { OPS_ACTOR: 'bad actor' }, 'safe identity'],
   ])('rejects %s', (_name, overrides, message) => {

@@ -5,6 +5,9 @@ const DEFAULT_MEDIA_URL_TTL_SECONDS = 3600;
 const DEFAULT_READINESS_TIMEOUT_MS = 3000;
 const DEFAULT_JSON_BODY_LIMIT_BYTES = 128 * 1024;
 const DEFAULT_RATE_LIMIT_TTL_MS = 60_000;
+const DEFAULT_TELEGRAM_WEBHOOK_BODY_LIMIT_BYTES = 64 * 1024;
+const DEFAULT_TELEGRAM_BOT_API_TIMEOUT_MS = 5000;
+const DEFAULT_BILLING_CHECKOUT_TTL_SECONDS = 900;
 const DEFAULT_UPLOAD_INTENT_TTL_SECONDS = 600;
 const DEFAULT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 const MAX_INIT_DATA_MAX_AGE_SECONDS = 86_400;
@@ -22,6 +25,10 @@ export interface AppEnvironment {
   TELEGRAM_BOT_USERNAME: string;
   TELEGRAM_ADMIN_APP_SHORT_NAME: string;
   TELEGRAM_GALLERY_APP_SHORT_NAME: string;
+  TELEGRAM_BOT_API_TEST_MODE: boolean;
+  TELEGRAM_WEBHOOK_SECRET?: string;
+  TELEGRAM_WEBHOOK_BODY_LIMIT_BYTES: number;
+  TELEGRAM_BOT_API_TIMEOUT_MS: number;
   ADMIN_TG_IDS: string[];
   TENANCY_MODE: TenancyMode;
   TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: number;
@@ -47,6 +54,12 @@ export interface AppEnvironment {
   RATE_LIMIT_ADMIN: number;
   RATE_LIMIT_UPLOAD: number;
   RATE_LIMIT_REPORT: number;
+  RATE_LIMIT_WEBHOOK: number;
+  BILLING_PRO_PRICE_STARS?: number;
+  BILLING_CHECKOUT_TTL_SECONDS: number;
+  PAY_SUPPORT_CONTACT?: string;
+  BILLING_TERMS_URL?: string;
+  BILLING_PRIVACY_URL?: string;
   OPS_TOKEN_SHA256?: string;
   OPS_ACTOR?: string;
   STATIC_ROOT?: string;
@@ -199,6 +212,46 @@ function parseInteger(
     return defaultValue;
   }
   return value;
+}
+
+function parseOptionalInteger(
+  config: RawEnvironment,
+  key: string,
+  min: number,
+  max: number,
+  errors: string[],
+): number | undefined {
+  const raw = readString(config, key);
+  if (!raw) return undefined;
+  if (!/^\d+$/.test(raw)) {
+    errors.push(`${key} must be an integer`);
+    return undefined;
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    errors.push(`${key} must be between ${min} and ${max}`);
+    return undefined;
+  }
+  return value;
+}
+
+function parseOptionalHttpsUrl(
+  config: RawEnvironment,
+  key: string,
+  errors: string[],
+): string | undefined {
+  const raw = readString(config, key);
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || url.username || url.password) {
+      throw new Error();
+    }
+    return url.toString();
+  } catch {
+    errors.push(`${key} must be an HTTPS URL without embedded credentials`);
+    return undefined;
+  }
 }
 
 function parseBoolean(
@@ -361,6 +414,38 @@ export function validateEnv(
     'TELEGRAM_GALLERY_APP_SHORT_NAME',
     errors,
   );
+  const telegramBotApiTestMode = parseBoolean(
+    config,
+    'TELEGRAM_BOT_API_TEST_MODE',
+    true,
+    errors,
+  );
+  const telegramWebhookSecret = readString(config, 'TELEGRAM_WEBHOOK_SECRET');
+  if (
+    telegramWebhookSecret &&
+    (!/^[A-Za-z0-9_-]{32,256}$/.test(telegramWebhookSecret) ||
+      Buffer.byteLength(telegramWebhookSecret, 'utf8') > 256)
+  ) {
+    errors.push(
+      'TELEGRAM_WEBHOOK_SECRET must be 32-256 letters, numbers, underscores, or hyphens',
+    );
+  }
+  const telegramWebhookBodyLimit = parseInteger(
+    config,
+    'TELEGRAM_WEBHOOK_BODY_LIMIT_BYTES',
+    DEFAULT_TELEGRAM_WEBHOOK_BODY_LIMIT_BYTES,
+    1024,
+    DEFAULT_JSON_BODY_LIMIT_BYTES,
+    errors,
+  );
+  const telegramBotApiTimeout = parseInteger(
+    config,
+    'TELEGRAM_BOT_API_TIMEOUT_MS',
+    DEFAULT_TELEGRAM_BOT_API_TIMEOUT_MS,
+    500,
+    8000,
+    errors,
+  );
   const tenancyMode = parseTenancyMode(config, errors);
   const adminIds = parseAdminIds(config, errors, tenancyMode === 'single');
   const initDataMaxAge = parseInteger(
@@ -476,6 +561,48 @@ export function validateEnv(
     10_000,
     errors,
   );
+  const rateLimitWebhook = parseInteger(
+    config,
+    'RATE_LIMIT_WEBHOOK',
+    120,
+    1,
+    10_000,
+    errors,
+  );
+  const billingProPriceStars = parseOptionalInteger(
+    config,
+    'BILLING_PRO_PRICE_STARS',
+    1,
+    10_000,
+    errors,
+  );
+  const billingCheckoutTtl = parseInteger(
+    config,
+    'BILLING_CHECKOUT_TTL_SECONDS',
+    DEFAULT_BILLING_CHECKOUT_TTL_SECONDS,
+    60,
+    3600,
+    errors,
+  );
+  const paySupportContact = readString(config, 'PAY_SUPPORT_CONTACT');
+  if (
+    paySupportContact &&
+    (paySupportContact.length < 3 ||
+      paySupportContact.length > 200 ||
+      /[\r\n\t]/.test(paySupportContact))
+  ) {
+    errors.push('PAY_SUPPORT_CONTACT must be 3-200 characters');
+  }
+  const billingTermsUrl = parseOptionalHttpsUrl(
+    config,
+    'BILLING_TERMS_URL',
+    errors,
+  );
+  const billingPrivacyUrl = parseOptionalHttpsUrl(
+    config,
+    'BILLING_PRIVACY_URL',
+    errors,
+  );
   const opsTokenSha256 = readString(config, 'OPS_TOKEN_SHA256');
   if (opsTokenSha256 && !/^[a-f0-9]{64}$/.test(opsTokenSha256)) {
     errors.push('OPS_TOKEN_SHA256 must be a lowercase SHA-256 hex digest');
@@ -498,6 +625,10 @@ export function validateEnv(
     TELEGRAM_BOT_USERNAME: botUsername,
     TELEGRAM_ADMIN_APP_SHORT_NAME: adminAppShortName,
     TELEGRAM_GALLERY_APP_SHORT_NAME: galleryAppShortName,
+    TELEGRAM_BOT_API_TEST_MODE: telegramBotApiTestMode,
+    TELEGRAM_WEBHOOK_SECRET: telegramWebhookSecret,
+    TELEGRAM_WEBHOOK_BODY_LIMIT_BYTES: telegramWebhookBodyLimit,
+    TELEGRAM_BOT_API_TIMEOUT_MS: telegramBotApiTimeout,
     ADMIN_TG_IDS: adminIds,
     TENANCY_MODE: tenancyMode,
     TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: initDataMaxAge,
@@ -515,6 +646,12 @@ export function validateEnv(
     RATE_LIMIT_ADMIN: rateLimitAdmin,
     RATE_LIMIT_UPLOAD: rateLimitUpload,
     RATE_LIMIT_REPORT: rateLimitReport,
+    RATE_LIMIT_WEBHOOK: rateLimitWebhook,
+    BILLING_PRO_PRICE_STARS: billingProPriceStars,
+    BILLING_CHECKOUT_TTL_SECONDS: billingCheckoutTtl,
+    PAY_SUPPORT_CONTACT: paySupportContact,
+    BILLING_TERMS_URL: billingTermsUrl,
+    BILLING_PRIVACY_URL: billingPrivacyUrl,
     OPS_TOKEN_SHA256: opsTokenSha256,
     OPS_ACTOR: opsActor,
     STATIC_ROOT: staticRoot,

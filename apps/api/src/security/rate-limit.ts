@@ -3,7 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import type { ThrottlerModuleOptions } from '@nestjs/throttler';
 import type { TgRequest } from '../auth/request-context';
 
-export type RateLimitProfile = 'general' | 'admin' | 'upload' | 'report';
+export type RateLimitProfile =
+  | 'general'
+  | 'admin'
+  | 'upload'
+  | 'report'
+  | 'webhook';
 
 const RATE_LIMIT_PROFILE = 'gallery:rate-limit-profile';
 
@@ -14,7 +19,10 @@ function profileFor(context: ExecutionContext): RateLimitProfile {
   const value: unknown =
     Reflect.getMetadata(RATE_LIMIT_PROFILE, context.getHandler()) ??
     Reflect.getMetadata(RATE_LIMIT_PROFILE, context.getClass());
-  return value === 'admin' || value === 'upload' || value === 'report'
+  return value === 'admin' ||
+    value === 'upload' ||
+    value === 'report' ||
+    value === 'webhook'
     ? value
     : 'general';
 }
@@ -37,13 +45,15 @@ export function createRateLimitOptions(
       | 'RATE_LIMIT_GENERAL'
       | 'RATE_LIMIT_ADMIN'
       | 'RATE_LIMIT_UPLOAD'
-      | 'RATE_LIMIT_REPORT';
+      | 'RATE_LIMIT_REPORT'
+      | 'RATE_LIMIT_WEBHOOK';
     name: RateLimitProfile;
   }> = [
     { name: 'general', limitKey: 'RATE_LIMIT_GENERAL' },
     { name: 'admin', limitKey: 'RATE_LIMIT_ADMIN' },
     { name: 'upload', limitKey: 'RATE_LIMIT_UPLOAD' },
     { name: 'report', limitKey: 'RATE_LIMIT_REPORT' },
+    { name: 'webhook', limitKey: 'RATE_LIMIT_WEBHOOK' },
   ];
   return {
     getTracker: (request) => trackerFor(request),

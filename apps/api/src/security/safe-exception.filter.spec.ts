@@ -8,6 +8,7 @@ describe('SafeExceptionFilter', () => {
   it('redacts configured and request secrets from captured logs', () => {
     const secret = 'seeded-bot-secret';
     const database = 'postgresql://secret-database';
+    const webhookSecret = 'seeded-webhook-secret';
     const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const json = jest.fn();
     const response = {
@@ -25,18 +26,28 @@ describe('SafeExceptionFilter', () => {
       new ConfigService({
         TELEGRAM_BOT_TOKEN: secret,
         DATABASE_URL: database,
+        TELEGRAM_WEBHOOK_SECRET: webhookSecret,
       }),
     );
 
     filter.catch(
       new Error(
-        `${secret} ${database} authorization=tma-secret ?signature=signed-value&expires=123`,
+        `${secret} ${database} ${webhookSecret} authorization=tma-secret invoice_payload=checkout-secret telegram_payment_charge_id=charge-secret ?signature=signed-value&expires=123`,
       ),
       host,
     );
 
     expect(logger).toHaveBeenCalledWith(expect.not.stringContaining(secret));
     expect(logger).toHaveBeenCalledWith(expect.not.stringContaining(database));
+    expect(logger).toHaveBeenCalledWith(
+      expect.not.stringContaining(webhookSecret),
+    );
+    expect(logger).toHaveBeenCalledWith(
+      expect.not.stringContaining('checkout-secret'),
+    );
+    expect(logger).toHaveBeenCalledWith(
+      expect.not.stringContaining('charge-secret'),
+    );
     expect(logger).toHaveBeenCalledWith(
       expect.not.stringContaining('signed-value'),
     );

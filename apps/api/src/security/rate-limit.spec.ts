@@ -17,6 +17,7 @@ describe('rate limit configuration', () => {
         RATE_LIMIT_ADMIN: 60,
         RATE_LIMIT_UPLOAD: 20,
         RATE_LIMIT_REPORT: 5,
+        RATE_LIMIT_WEBHOOK: 120,
       }),
     ),
   );

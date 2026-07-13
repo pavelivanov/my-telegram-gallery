@@ -43,6 +43,9 @@ export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
   const origins = config.get<readonly string[]>('WEB_ORIGINS') ?? [];
   const jsonBodyLimit = config.getOrThrow<number>('JSON_BODY_LIMIT_BYTES');
+  const telegramWebhookBodyLimit = config.getOrThrow<number>(
+    'TELEGRAM_WEBHOOK_BODY_LIMIT_BYTES',
+  );
   const trustProxyHops = config.getOrThrow<number>('TRUST_PROXY_HOPS');
   const express = app.getHttpAdapter().getInstance() as Express;
 
@@ -51,6 +54,10 @@ export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
   app.enableCors({ origin: origins.length > 0 ? [...origins] : false });
   app.use(requestContextMiddleware);
+  app.use(
+    '/api/telegram/webhook',
+    safeBodyParser(json({ limit: telegramWebhookBodyLimit })),
+  );
   app.use(safeBodyParser(json({ limit: jsonBodyLimit })));
   app.use(
     safeBodyParser(urlencoded({ extended: false, limit: jsonBodyLimit })),
