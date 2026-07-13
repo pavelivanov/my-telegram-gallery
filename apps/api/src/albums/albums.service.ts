@@ -3,14 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { R2Service } from '../storage/r2.service';
 
 @Injectable()
 export class AlbumsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly r2: R2Service,
+    private readonly media: MediaService,
   ) {}
 
   create(name: string) {
@@ -32,22 +32,22 @@ export class AlbumsService {
         return {
           ...album,
           photoCount: _count.photos,
-          // Medium-res preview: covers render near full-width in the gallery.
           coverUrl: cover
-            ? await this.r2.presignDownload(
-                cover.previewKey ?? cover.thumbKey ?? cover.key,
-              )
+            ? await this.media.urlForBestVariant(cover, [
+                'preview',
+                'thumb',
+                'original',
+              ])
             : null,
-          // Lightweight variant for small cover avatars (admin list).
           coverThumbUrl: cover
-            ? await this.r2.presignDownload(cover.thumbKey ?? cover.key)
+            ? await this.media.urlForBestVariant(cover, ['thumb', 'original'])
             : null,
         };
       }),
     );
   }
 
-  /** Album with all photos (presigned GET URLs), newest-first. */
+  /** Album with all photos, newest-first. */
   async get(id: string) {
     const album = await this.prisma.album.findUnique({
       where: { id },
@@ -57,15 +57,11 @@ export class AlbumsService {
     });
     if (!album) throw new NotFoundException();
     return {
-      ...album,
+      id: album.id,
+      name: album.name,
+      createdAt: album.createdAt,
       photos: await Promise.all(
-        album.photos.map(async (p) => ({
-          ...p,
-          url: await this.r2.presignDownload(p.key),
-          thumbUrl: p.thumbKey
-            ? await this.r2.presignDownload(p.thumbKey)
-            : null,
-        })),
+        album.photos.map((photo) => this.media.serializePhoto(photo)),
       ),
     };
   }

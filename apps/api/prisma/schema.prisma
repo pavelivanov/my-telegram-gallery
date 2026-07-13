@@ -9,27 +9,55 @@ datasource db {
 }
 
 model Album {
-  id        String   @id @default(cuid())
-  name      String
-  photos    Photo[]
-  createdAt DateTime @default(now())
+  id            String         @id @default(cuid())
+  name          String
+  photos        Photo[]
+  uploadIntents UploadIntent[]
+  createdAt     DateTime       @default(now())
 
   @@index([createdAt])
 }
 
 model Photo {
-  id         String   @id @default(cuid())
-  key        String   @unique // R2 object key
-  thumbKey   String? // R2 key of the lightweight grid preview (webp), null for legacy rows
-  previewKey String? // R2 key of the medium-res preview (webp) used for album covers
-  mimeType   String
-  size       Int
-  width      Int?
-  height     Int?
-  position   Int      @default(0) // manual sort order within the album (asc)
-  album      Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  albumId    String
-  createdAt  DateTime @default(now())
+  id           String        @id @default(cuid())
+  key          String        @unique // opaque original object key
+  thumbKey     String? // opaque lightweight grid preview key (webp), null for legacy rows
+  previewKey   String? // opaque medium-res album cover preview key (webp)
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  position     Int           @default(0) // manual sort order within the album (asc)
+  album        Album         @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumId      String
+  uploadIntent UploadIntent?
+  createdAt    DateTime      @default(now())
 
   @@index([albumId, position])
+}
+
+enum UploadIntentStatus {
+  PENDING
+  UPLOADED
+  CONFIRMED
+  EXPIRED
+  FAILED
+}
+
+model UploadIntent {
+  id               String             @id @default(cuid())
+  key              String             @unique
+  album            Album              @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  albumId          String
+  expectedMimeType String
+  expectedSize     Int
+  status           UploadIntentStatus @default(PENDING)
+  expiresAt        DateTime
+  photo            Photo?             @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  photoId          String?            @unique
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status, expiresAt])
+  @@index([albumId])
 }

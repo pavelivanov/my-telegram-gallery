@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { StorageModule } from '../storage/storage.module';
+import { MediaModule } from '../media/media.module';
 import { AlbumsController } from './albums.controller';
 import { AlbumsService } from './albums.service';
 
 @Module({
-  imports: [StorageModule],
+  imports: [MediaModule],
   controllers: [AlbumsController],
   providers: [AlbumsService],
 })

@@ -1,14 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FilesystemStorage } from './filesystem.storage';
-import { R2Service } from './r2.service';
 import { S3Storage } from './s3.storage';
 import { OBJECT_STORAGE, type ObjectStorage } from './storage.types';
 
 @Global()
 @Module({
   providers: [
-    R2Service,
     {
       provide: OBJECT_STORAGE,
       inject: [ConfigService],
@@ -21,6 +19,6 @@ import { OBJECT_STORAGE, type ObjectStorage } from './storage.types';
       },
     },
   ],
-  exports: [OBJECT_STORAGE, R2Service],
+  exports: [OBJECT_STORAGE],
 })
 export class StorageModule {}

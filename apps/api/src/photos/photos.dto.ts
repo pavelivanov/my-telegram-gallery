@@ -1,32 +1,24 @@
-import { IsInt, IsMimeType, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsString, Min } from 'class-validator';
+
+export const ALLOWED_UPLOAD_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
 
 export class CreateUploadDto {
   @IsString()
   albumId: string;
 
-  @IsMimeType()
+  @IsIn(ALLOWED_UPLOAD_MIME_TYPES)
   contentType: string;
-}
-
-export class ConfirmUploadDto {
-  @IsString()
-  albumId: string;
-
-  @IsString()
-  key: string;
-
-  @IsMimeType()
-  mimeType: string;
 
   @IsInt()
   @Min(1)
   size: number;
+}
 
-  @IsOptional()
-  @IsInt()
-  width?: number;
-
-  @IsOptional()
-  @IsInt()
-  height?: number;
+export class ConfirmUploadDto {
+  @IsString()
+  uploadId: string;
 }
