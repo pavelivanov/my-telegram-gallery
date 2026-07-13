@@ -5,22 +5,21 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Request } from 'express';
-import { TgUser } from './tg-init-data.guard';
+import type { TgRequest } from './request-context';
 
 /**
- * Allows only the admin Telegram account (ADMIN_TG_ID).
- * Must run after TgInitDataGuard, which sets req.tgUser.
+ * Allows only configured single-gallery administrators (ADMIN_TG_IDS).
+ * Must run after TgInitDataGuard, which sets req.tgAuth and req.tgUser.
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<Request>();
-    const tgUser = req['tgUser'] as TgUser | undefined;
-    const adminId = this.config.getOrThrow<string>('ADMIN_TG_ID');
-    if (!tgUser || String(tgUser.id) !== adminId) {
+    const req = context.switchToHttp().getRequest<TgRequest>();
+    const tgUser = req.tgAuth?.user ?? req.tgUser;
+    const adminIds = this.config.getOrThrow<readonly string[]>('ADMIN_TG_IDS');
+    if (!tgUser || !adminIds.includes(String(tgUser.id))) {
       throw new ForbiddenException('Admin only');
     }
     return true;

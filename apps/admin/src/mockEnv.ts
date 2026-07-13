@@ -21,6 +21,14 @@ if (import.meta.env.DEV) {
       text_color: '#f5f5f5',
     } as const;
     const noInsets = { left: 0, top: 0, bottom: 0, right: 0 } as const;
+    const configuredInitData: unknown = import.meta.env.VITE_MOCK_INIT_DATA;
+    const mockInitData = typeof configuredInitData === 'string' && configuredInitData
+      ? configuredInitData
+      : new URLSearchParams([
+        ['auth_date', Math.floor(Date.now() / 1000).toString()],
+        ['hash', '0'.repeat(64)],
+        ['user', JSON.stringify({ id: 1, first_name: 'Development user' })],
+      ]).toString();
 
     mockTelegramEnv({
       onEvent(e) {
@@ -48,25 +56,9 @@ if (import.meta.env.DEV) {
         // Discover more launch parameters:
         // https://docs.telegram-mini-apps.com/platform/launch-parameters#parameters-list
         ['tgWebAppThemeParams', JSON.stringify(themeParams)],
-        // Your init data goes here. Learn more about it here:
-        // https://docs.telegram-mini-apps.com/platform/init-data#parameters-list
-        //
-        // Note that to make sure, you are using a valid init data, you must pass it exactly as it
-        // is sent from the Telegram application. The reason is in case you will sort its keys
-        // (auth_date, hash, user, etc.) or values your own way, init data validation will more
-        // likely to fail on your server side. So, to make sure you are working with a valid init
-        // data, it is better to take a real one from your application and paste it here. It should
-        // look something like this (a correctly encoded URL search params):
-        // ```
-        // user=%7B%22id%22%3A279058397%2C%22first_name%22%3A%22Vladislav%22%2C%22last_name%22...
-        // ```
-        // But in case you don't really need a valid init data, use this one:
-        ['tgWebAppData', new URLSearchParams([
-          ['auth_date', (new Date().getTime() / 1000 | 0).toString()],
-          ['hash', 'some-hash'],
-          ['signature', 'some-signature'],
-          ['user', JSON.stringify({ id: 1, first_name: 'Vladislav' })],
-        ]).toString()],
+        // Set VITE_MOCK_INIT_DATA to a fresh, test-only signed value when the
+        // local UI needs to call the API. Never expose the bot token to Vite.
+        ['tgWebAppData', mockInitData],
         ['tgWebAppVersion', '8.4'],
         ['tgWebAppPlatform', 'tdesktop'],
       ]),
