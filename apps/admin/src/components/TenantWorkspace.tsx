@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type PropsWithChildren,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
   api,
@@ -227,6 +227,12 @@ function TenantNavigation({
           </span>
         </label>
         <div className="flex shrink-0 items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em]">
+          <Link
+            className="text-ink-dim transition-colors active:text-brass"
+            to="/billing"
+          >
+            Plan
+          </Link>
           <a
             className="text-brass transition-opacity active:opacity-60"
             href={homeLink}

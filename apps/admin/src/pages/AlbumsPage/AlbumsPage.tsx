@@ -44,9 +44,18 @@ export const AlbumsPage: FC = () => {
   return (
     <Page back={false}>
       <header className="animate-rise px-5 pt-10 pb-6">
-        <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
-          my gallery
-        </span>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-[11px] font-medium uppercase tracking-[0.32em] text-brass">
+            my gallery
+          </span>
+          <button
+            type="button"
+            className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-dim active:text-brass"
+            onClick={() => navigate('/billing')}
+          >
+            Plan
+          </button>
+        </div>
         <h1 className="mt-2 font-display text-[34px] font-light leading-none">
           Albums
         </h1>

@@ -45,3 +45,32 @@ export interface Tenant {
     storageUsedBytes: string;
   };
 }
+
+export interface BillingState {
+  configured: boolean;
+  testMode: boolean;
+  priceStars: number | null;
+  supportContact: string | null;
+  termsUrl: string | null;
+  privacyUrl: string | null;
+  graceDays: number;
+  plan: 'free' | 'pro';
+  subscription: {
+    status: 'active' | 'grace' | 'expired';
+    currentPeriodEnd: string;
+    graceEndsAt: string | null;
+    cancelAtPeriodEnd: boolean;
+  } | null;
+  limits: {
+    albums: number;
+    photos: number;
+    storageBytes: string;
+    uploadBytes: number;
+  };
+}
+
+export interface BillingCheckout {
+  invoiceUrl: string | null;
+  expiresAt: string | null;
+  billing: BillingState | null;
+}
