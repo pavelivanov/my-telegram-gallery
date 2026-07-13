@@ -170,8 +170,8 @@ for platform in "${platforms[@]}"; do
   gzip -dc "$platform_output/image.tar.gz" | docker load >/dev/null
   [[ "$(docker image inspect --format '{{.Id}}' "$image")" == "$image_id" ]]
 
-  SMOKE_BUILD=false SMOKE_IMAGE="$image_id" SMOKE_PLATFORM="$platform" \
-    bash scripts/smoke-self-host.sh
+  LIFECYCLE_BUILD=false LIFECYCLE_IMAGE="$image_id" \
+    LIFECYCLE_PLATFORM="$platform" bash scripts/smoke-backup-restore.sh
   (cd "$platform_output" && shasum -a 256 -c SHA256SUMS)
 done
 

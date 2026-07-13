@@ -148,11 +148,14 @@ pnpm build
 docker build -t my-telegram-gallery:local .
 docker compose config --quiet
 bash scripts/smoke-self-host.sh
+LIFECYCLE_BUILD=false LIFECYCLE_IMAGE=my-telegram-gallery:local \
+  pnpm smoke:lifecycle
 ```
 
-The smoke test creates a disposable Compose project, validates generated
-secrets, applies migrations, checks readiness/liveness and both static mounts,
-then always removes containers and volumes.
+The smoke tests create disposable Compose projects, validate generated secrets,
+apply migrations, check readiness/liveness and both static mounts, then always
+remove containers and volumes. The lifecycle variant also proves restart
+persistence and a checksummed database/media restore into fresh volumes.
 
 Maintainers can create a private, checksummed image archive, license inventory,
 SBOM, and vulnerability report by following

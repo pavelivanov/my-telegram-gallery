@@ -34,10 +34,14 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "backup/$stamp"
 docker compose exec -T db pg_dump -U gallery -d gallery -Fc \
   > "backup/$stamp/gallery.dump"
-docker compose cp app:/data/media "backup/$stamp/media"
+docker compose exec -T app tar -C /data/media -cf - . \
+  > "backup/$stamp/media.tar"
 cp .env "backup/$stamp/env"
 chmod 600 "backup/$stamp/env"
-sha256sum "backup/$stamp/gallery.dump" \
+sha256sum \
+  "backup/$stamp/env" \
+  "backup/$stamp/gallery.dump" \
+  "backup/$stamp/media.tar" \
   > "backup/$stamp/SHA256SUMS"
 ```
 
@@ -59,7 +63,8 @@ database and media volume/bucket with no public ingress, then:
 1. Verify backup checksum and decrypt into the isolated operator workspace.
 2. Restore PostgreSQL with `pg_restore --clean --if-exists` into the disposable
    database.
-3. Restore media into the disposable volume/bucket.
+3. Restore media into the disposable volume/bucket as the application user so
+   the restored tree stays writable for later uploads.
 4. Start the exact recorded image with the restored database/media and separate
    test bot credentials. Do not reuse the production bot token.
 5. Confirm migrations, `/api/health/ready`, tenant counts, random original and
@@ -78,6 +83,30 @@ For a Compose-shaped disposable database, the core restore command is:
 pg_restore --clean --if-exists --no-owner --no-privileges \
   --dbname "$RESTORE_DATABASE_URL" backup/TIMESTAMP/gallery.dump
 ```
+
+For the supplied Compose topology, create the application volume without
+starting the server and extract the media archive as its non-root application
+user:
+
+```bash
+docker compose run --rm --no-deps --entrypoint sh app \
+  -c 'tar -C /data/media -xf -' < backup/TIMESTAMP/media.tar
+```
+
+After startup, verify the restored media tree is readable and writable by the
+application user. Avoid a host-to-container copy that silently changes every
+file to root ownership.
+
+The repository's disposable rehearsal implements this exact sequence with
+synthetic records and files:
+
+```bash
+pnpm smoke:lifecycle
+```
+
+It destroys both source and restore volumes on exit. It is regression evidence,
+not a substitute for the encrypted off-host backup and independent restore
+drill required for production.
 
 ## Production recovery
 

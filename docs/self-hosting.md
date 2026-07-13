@@ -90,8 +90,10 @@ Back up both PostgreSQL and media before every upgrade. For the default names:
 
 ```bash
 mkdir -p backup
-docker compose exec -T db pg_dump -U gallery -d gallery > backup/gallery.sql
-docker compose cp app:/data/media backup/media
+docker compose exec -T db pg_dump -U gallery -d gallery -Fc \
+  > backup/gallery.dump
+docker compose exec -T app tar -C /data/media -cf - . \
+  > backup/media.tar
 ```
 
 Also back up `.env` securely. It contains the bot token, database password, and

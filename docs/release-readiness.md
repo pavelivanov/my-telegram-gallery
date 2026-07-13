@@ -53,8 +53,14 @@ identifiers.
   days. It has no package-write, attestation, or identity-token permission.
 - `pnpm release:verify -- EVIDENCE_DIRECTORY` independently checks transferred
   checksums, local provenance, scan reports, image identity/labels, secret
-  guards, Sharp, and the Compose smoke. It intentionally does not claim signing
-  or publisher identity.
+  guards, Sharp, and the Compose restart/backup/restore lifecycle smoke. It
+  intentionally does not claim signing or publisher identity.
+- The lifecycle smoke was rehearsed locally with synthetic tenant-scoped
+  database/media state. Restart persistence, checksummed custom-format database
+  plus media-tar backup, fresh-volume restore, restored-tree writeability, zero
+  usage drift, zero billing discrepancies, and final restart all passed. A
+  current-HEAD candidate run and independent production-shaped drill remain
+  required.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.

@@ -93,7 +93,8 @@ docker run --rm --entrypoint node "$IMAGE" -e '
   });
 '
 
-SMOKE_BUILD=false SMOKE_IMAGE="$IMAGE" bash scripts/smoke-self-host.sh
+LIFECYCLE_BUILD=false LIFECYCLE_IMAGE="$IMAGE" \
+  bash scripts/smoke-backup-restore.sh
 
 pnpm licenses list --prod --json > "$OUTPUT_DIR/licenses.json"
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$SYFT_IMAGE" \

@@ -34,7 +34,11 @@ The candidate command:
    version labels;
 4. verifies the non-root runtime, exact labels, absence of embedded environment
    files/secret-shaped image defaults, and native Sharp execution;
-5. runs the disposable Compose smoke test;
+5. runs a disposable Compose lifecycle smoke that seeds synthetic database and
+   media state, proves restart persistence, creates and verifies a matched
+   backup, destroys the source volumes, restores into fresh volumes, verifies
+   restored writeability, runs usage/billing reconciliation, and restarts the
+   restored stack;
 6. creates production-license inventory and a CycloneDX image SBOM;
 7. fails on high/critical Grype image findings;
 8. saves the image and scans that archive for secrets;
@@ -182,9 +186,10 @@ and executes the image. The verifier checks every recorded checksum, local
 provenance fields, empty secret report, CycloneDX structure, absence of
 high/critical scan findings, gzip integrity, image ID/platform/non-root user,
 OCI revision/source/version labels, runtime environment-file/default-secret
-guards, native or emulated Sharp execution, and the full disposable Compose
-smoke. A successful run is stronger transfer evidence, but it does not turn the
-unsigned local statement into trusted publisher provenance.
+guards, native or emulated Sharp execution, and the full disposable restart and
+backup/restore lifecycle smoke. A successful run is stronger transfer evidence,
+but it does not turn the unsigned local statement into trusted publisher
+provenance.
 
 An emulated pass proves the architecture-specific Prisma/Sharp artifacts can
 execute. A successful native GitHub matrix run adds clean hosted-runner

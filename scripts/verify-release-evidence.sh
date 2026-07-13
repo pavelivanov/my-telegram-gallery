@@ -166,7 +166,7 @@ docker run --rm --platform "$platform" --entrypoint node "$image_id" -e '
   });
 '
 
-SMOKE_BUILD=false SMOKE_IMAGE="$image_id" SMOKE_PLATFORM="$platform" \
-  bash scripts/smoke-self-host.sh
+LIFECYCLE_BUILD=false LIFECYCLE_IMAGE="$image_id" \
+  LIFECYCLE_PLATFORM="$platform" bash scripts/smoke-backup-restore.sh
 
 echo "Release evidence verified for $version at $revision ($platform)."
