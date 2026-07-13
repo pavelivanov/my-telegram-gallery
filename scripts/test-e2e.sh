@@ -76,3 +76,17 @@ if "${bootstrap_tenant[@]}" --owner-tg-id 999; then
 fi
 
 pnpm --filter api test:e2e --runInBand
+
+echo "Rehearsing bounded operational commands..."
+pnpm --filter api uploads:cleanup --dry-run --limit 1000
+pnpm --filter api uploads:cleanup --apply --limit 1000
+pnpm --filter api uploads:cleanup --apply --limit 1000
+pnpm --filter api usage:reconcile --dry-run --limit 1000
+pnpm --filter api usage:reconcile --apply --limit 1000
+pnpm --filter api usage:reconcile --apply --limit 1000
+
+export OPS_TOKEN="e2e-operator-token"
+export OPS_TOKEN_SHA256
+OPS_TOKEN_SHA256="$(node -e 'const c=require("node:crypto"); process.stdout.write(c.createHash("sha256").update(process.env.OPS_TOKEN).digest("hex"))')"
+export OPS_ACTOR="e2e-operator"
+pnpm --filter api ops tenant inspect --tenant default

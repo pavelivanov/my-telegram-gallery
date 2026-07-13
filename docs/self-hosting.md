@@ -98,7 +98,8 @@ Also back up `.env` securely. It contains the bot token, database password, and
 media signing key. Losing the media signing key invalidates current signed URLs
 but not stored media; losing the bot token requires rotation through BotFather.
 
-See [upgrading.md](upgrading.md) for the update and rollback procedure.
+See [backups.md](backups.md) for the complete retention and restore-drill
+procedure, and [upgrading.md](upgrading.md) for update and rollback.
 
 ## Optional S3-compatible storage
 

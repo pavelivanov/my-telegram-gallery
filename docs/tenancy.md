@@ -79,7 +79,7 @@ Rehearse these steps on a disposable restore before production.
    bootstrapped owner. Confirm the default gallery appears in admin, its home
    link uses `tenant_default`, and existing `album_<id>` shares still open.
 7. Create two staging tenants with different owners. Verify their album lists,
-   uploads, media URLs, reorder, backfill, and delete operations never cross;
+   uploads, media URLs, reorder, reconciliation, and delete operations never cross;
    verify a valid viewer can read either active gallery but cannot mutate one.
 8. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
    enablement in production as separate observable steps.

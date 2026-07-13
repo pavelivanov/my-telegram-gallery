@@ -43,6 +43,8 @@ The complete DNS, BotFather, backup, S3, troubleshooting, and Railway guidance
 is in [docs/self-hosting.md](docs/self-hosting.md). Read
 [docs/upgrading.md](docs/upgrading.md) before updating a live installation.
 See [docs/tenancy.md](docs/tenancy.md) before enabling multi mode.
+Hosted operators should also read [docs/operations.md](docs/operations.md),
+[docs/backups.md](docs/backups.md), and [docs/abuse.md](docs/abuse.md).
 
 ## Repository layout
 
@@ -101,12 +103,18 @@ Important public operational routes:
 | `GET /api/health/ready` | Bounded PostgreSQL and storage readiness |
 | `GET /api/media/tenants/:tenantId/photos/:id/:variant` | Tenant-bound signed proxy media delivery |
 | `GET/POST /api/tenants` | Owned galleries and multi-mode onboarding |
+| `POST /api/reports` | Rate-limited gallery abuse report intake |
 
 Album and upload routes require `Authorization: tma <initDataRaw>`; mutations
 require an env administrator in single mode or the selected tenant's owner in
 multi mode. Uploads use a server-created intent,
 then either a same-origin proxy PUT or presigned S3 PUT, followed by confirmation
 with the intent ID. Clients never choose or receive raw storage keys.
+
+Quota admission reserves bytes before upload and commits authoritative original
+plus variant sizes at confirmation under a PostgreSQL tenant lock. Bounded
+cleanup/reconciliation and audited operator commands are documented in
+[docs/operations.md](docs/operations.md).
 
 ## Verification
 
