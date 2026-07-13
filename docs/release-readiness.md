@@ -58,9 +58,16 @@ identifiers.
 - The lifecycle smoke was rehearsed locally with synthetic tenant-scoped
   database/media state. Restart persistence, checksummed custom-format database
   plus media-tar backup, fresh-volume restore, restored-tree writeability, zero
-  usage drift, zero billing discrepancies, and final restart all passed. A
-  current-HEAD candidate run and independent production-shaped drill remain
-  required.
+  usage drift, zero billing discrepancies, and final restart all passed.
+- A private `0.1.0-rc.local` candidate for implementation revision
+  `d5716cb4e8cc82283a486b8c2b9adff5a75a73b6` passed the complete local candidate
+  pipeline on `linux/arm64`. The independently invoked evidence verifier checked
+  every transferred checksum, reloaded the exact image, and repeated the full
+  lifecycle successfully. The candidate reported zero dependency advisories,
+  zero full-history or image-archive secret findings, three medium image
+  findings, and zero high/critical findings. This follow-up record changes only
+  documentation; the eventual release revision and independent
+  production-shaped drill still require their own evidence.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.
