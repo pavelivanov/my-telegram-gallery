@@ -1,5 +1,21 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
 import { App } from '@/components/App.tsx';
 import { ErrorBoundary } from '@/components/ErrorBoundary.tsx';
+
+// Session-lifetime cache: visited pages render instantly with no refetch.
+// Closing and reopening the Mini App is a fresh page load, which starts
+// with an empty cache — exactly when content should reload.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: Infinity,
+      gcTime: Infinity,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 function ErrorBoundaryError({ error }: { error: unknown }) {
   return (
@@ -21,7 +37,9 @@ function ErrorBoundaryError({ error }: { error: unknown }) {
 export function Root() {
   return (
     <ErrorBoundary fallback={ErrorBoundaryError}>
-      <App/>
+      <QueryClientProvider client={queryClient}>
+        <App/>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

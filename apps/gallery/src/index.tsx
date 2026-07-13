@@ -19,6 +19,17 @@ try {
   const debug = (launchParams.tgWebAppStartParam || '').includes('debug')
     || import.meta.env.DEV;
 
+  // Deep link: `?startapp=album_<id>` opens that album. The hash must be
+  // set BEFORE the router renders — Telegram delivers launch params in the
+  // URL hash, which HashRouter would treat as an unknown route and replace
+  // with "/" via the catch-all redirect.
+  const startMatch = /^album_([\w-]+)$/.exec(
+    launchParams.tgWebAppStartParam || '',
+  );
+  if (startMatch) {
+    window.location.hash = `#/albums/${startMatch[1]}`;
+  }
+
   // Configure all application dependencies.
   await init({
     debug,

@@ -1,5 +1,6 @@
-import { useEffect, useState, type FC } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type FC } from 'react';
+import { useParams } from 'react-router-dom';
 
 import { api } from '@/api/client';
 import type { AlbumDetail } from '@/api/types';
@@ -7,31 +8,82 @@ import { Page } from '@/components/Page';
 import { PhotoViewer } from '@/components/PhotoViewer/PhotoViewer';
 import { ErrorNote, Loading } from '@/pages/AlbumsPage/AlbumsPage';
 
+const PRELOAD_BATCH = 5;
+
+/** Resolves when the image is in the browser cache (or failed). */
+function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
+
 export const AlbumPage: FC = () => {
   const { id = '' } = useParams<{ id: string }>();
-  const [album, setAlbum] = useState<AlbumDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: album, error } = useQuery({
+    queryKey: ['albums', id],
+    queryFn: () => api<AlbumDetail>(`/albums/${id}`),
+  });
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
+  // Deep link into this album (handled by StartParamRedirect on launch).
+  const tmaLink = import.meta.env.VITE_GALLERY_TMA_LINK as string | undefined;
+  const shareLink = tmaLink ? `${tmaLink}?startapp=album_${id}` : null;
+
+  const copyLink = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable — ignore.
+    }
+  };
+
+  // Live priority for the preloader: the photo currently open in the viewer.
+  const priorityRef = useRef<number | null>(null);
+  priorityRef.current = viewerIndex;
+
+  // Warm the browser cache with the full-size photos in the background,
+  // in small batches. Each batch is picked nearest the photo open in the
+  // viewer — an opened photo must not wait behind the rest of the queue —
+  // or from the start of the list when the viewer is closed.
   useEffect(() => {
-    api<AlbumDetail>(`/albums/${id}`)
-      .then(setAlbum)
-      .catch((e: Error) => setError(e.message));
-  }, [id]);
+    if (!album) return;
+    let cancelled = false;
+    const urls = album.photos.map((p) => p.url);
+    const loaded = new Set<number>();
+    void (async () => {
+      while (!cancelled && loaded.size < urls.length) {
+        const center = priorityRef.current;
+        const batch = [...urls.keys()]
+          .filter((i) => !loaded.has(i))
+          .sort((a, b) =>
+            center === null
+              ? a - b
+              : Math.abs(a - center) - Math.abs(b - center),
+          )
+          .slice(0, PRELOAD_BATCH);
+        await Promise.all(
+          batch.map(async (i) => {
+            await preloadImage(urls[i]);
+            loaded.add(i);
+          }),
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [album]);
 
   if (!album) {
     return (
-      <Page>
-        <div className="animate-rise px-5 pt-10">
-          <Link
-            to="/"
-            className="inline-flex w-fit items-center gap-2 text-[11px] font-medium uppercase tracking-[0.32em] text-brass transition-opacity active:opacity-60"
-          >
-            <span aria-hidden>←</span> the collection
-          </Link>
-        </div>
-        {error ? <ErrorNote message={error} /> : <Loading />}
-      </Page>
+      <Page>{error ? <ErrorNote message={error.message} /> : <Loading />}</Page>
     );
   }
 
@@ -39,19 +91,24 @@ export const AlbumPage: FC = () => {
 
   return (
     <Page>
-      <header className="animate-rise px-5 pt-10 pb-6">
-        <Link
-          to="/"
-          className="inline-flex w-fit items-center gap-2 text-[11px] font-medium uppercase tracking-[0.32em] text-brass transition-opacity active:opacity-60"
-        >
-          <span aria-hidden>←</span> the collection
-        </Link>
-        <h1 className="mt-2 font-display text-[28px] leading-tight">
-          {album.name}
-        </h1>
-        <p className="mt-2 text-[13px] text-ink-dim">
+      <header className="animate-rise px-5 pt-4 pb-6">
+        <div className="flex items-center justify-between">
+          <h1 className="font-display text-[28px] leading-tight">
+            {album.name}
+          </h1>
+          {shareLink && (
+            <button
+              type="button"
+              className="shrink-0 rounded-full bg-ink/10 px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-opacity active:opacity-60"
+              onClick={copyLink}
+            >
+              {copied ? '✓ Copied' : 'Share'}
+            </button>
+          )}
+        </div>
+        <div className="mt-2 text-[13px] text-ink-dim">
           {total} {total === 1 ? 'photo' : 'photos'}
-        </p>
+        </div>
       </header>
 
       {total === 0 ? (

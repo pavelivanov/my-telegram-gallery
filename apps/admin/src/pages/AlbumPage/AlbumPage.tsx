@@ -125,6 +125,22 @@ export const AlbumPage: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewer, setViewer] = useState<Photo | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Gallery deep link: t.me Mini App link with the album as start param.
+  const tmaLink = import.meta.env.VITE_GALLERY_TMA_LINK as string | undefined;
+  const shareLink = tmaLink ? `${tmaLink}?startapp=album_${id}` : null;
+
+  const copyLink = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Could not copy the link');
+    }
+  };
 
   const load = useCallback(() => {
     api<AlbumDetail>(`/albums/${id}`)
@@ -261,12 +277,25 @@ export const AlbumPage: FC = () => {
         >
           <span aria-hidden>←</span> albums
         </Link>
-        <h1 className="mt-2 font-display text-[28px] font-light leading-tight [overflow-wrap:anywhere]">
-          {album.name}
-        </h1>
-        <p className="mt-2 text-[13px] tabular-nums text-ink-dim">
-          {total} {total === 1 ? 'photo' : 'photos'}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="mt-2 font-display text-[28px] font-light leading-tight [overflow-wrap:anywhere]">
+              {album.name}
+            </h1>
+            <p className="mt-2 text-[13px] tabular-nums text-ink-dim">
+              {total} {total === 1 ? 'photo' : 'photos'}
+            </p>
+          </div>
+          {shareLink && (
+            <button
+              type="button"
+              className="mt-3 shrink-0 rounded-full bg-ink/10 px-4 py-2 text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-opacity active:opacity-60"
+              onClick={copyLink}
+            >
+              {copied ? '✓ Copied' : 'Share'}
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="px-5 pt-3 pb-4">

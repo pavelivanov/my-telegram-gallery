@@ -1,4 +1,5 @@
-import { useEffect, useState, type FC } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { type FC } from 'react';
 import { Link } from 'react-router-dom';
 
 import { api } from '@/api/client';
@@ -6,14 +7,10 @@ import type { Album } from '@/api/types';
 import { Page } from '@/components/Page';
 
 export const AlbumsPage: FC = () => {
-  const [albums, setAlbums] = useState<Album[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<Album[]>('/albums')
-      .then(setAlbums)
-      .catch((e: Error) => setError(e.message));
-  }, []);
+  const { data: albums, error } = useQuery({
+    queryKey: ['albums'],
+    queryFn: () => api<Album[]>('/albums'),
+  });
 
   return (
     <Page back={false}>
@@ -32,9 +29,9 @@ export const AlbumsPage: FC = () => {
         )}
       </header>
 
-      {albums === null ? (
+      {albums === undefined ? (
         error ? (
-          <ErrorNote message={error} />
+          <ErrorNote message={error.message} />
         ) : (
           <Loading />
         )
@@ -57,7 +54,7 @@ export const AlbumsPage: FC = () => {
             >
               <Link
                 to={`/albums/${album.id}`}
-                className="group relative block overflow-hidden rounded-2xl border border-line bg-card"
+                className="group relative block overflow-hidden rounded-md border border-line bg-card"
               >
                 {album.coverUrl ? (
                   <img

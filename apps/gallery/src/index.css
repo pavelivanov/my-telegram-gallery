@@ -36,9 +36,20 @@
   }
 }
 
+html {
+  background: var(--color-night);
+}
+
 body {
   margin: 0;
   padding: 0;
+  /* In fullscreen mode content renders under the system status bar and
+     Telegram's header controls — pad by the safe areas the SDK binds. */
+  padding-top: calc(
+    var(--tg-viewport-safe-area-inset-top, 0px) +
+      var(--tg-viewport-content-safe-area-inset-top, 0px)
+  );
+  padding-bottom: var(--tg-viewport-safe-area-inset-bottom, 0px);
   background: var(--color-night);
   color: var(--color-ink);
   font-family: var(--font-body);
