@@ -177,7 +177,7 @@ export const AlbumPage: FC = () => {
     // confirmed photo to the album's end, so confirm order = final order.
     for (const upload of staged) {
       try {
-        const photo = await confirmPhoto(id, await upload.promise);
+        const photo = await confirmPhoto(await upload.promise);
         setPending((p) => p.filter((u) => u.id !== upload.item.id));
         setAlbum((a) => (a ? { ...a, photos: [...a.photos, photo] } : a));
         URL.revokeObjectURL(upload.item.previewUrl);

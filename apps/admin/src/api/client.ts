@@ -5,6 +5,12 @@ const BASE = typeof configuredBase === 'string'
   ? configuredBase
   : 'http://localhost:3000';
 
+export function apiUrl(pathOrUrl: string): string {
+  return /^https?:\/\//.test(pathOrUrl)
+    ? pathOrUrl
+    : new URL(pathOrUrl, BASE).toString();
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
     ...init,

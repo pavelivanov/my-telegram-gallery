@@ -9,7 +9,6 @@ export interface Album {
 
 export interface Photo {
   id: string;
-  key: string;
   mimeType: string;
   size: number;
   width: number | null;
