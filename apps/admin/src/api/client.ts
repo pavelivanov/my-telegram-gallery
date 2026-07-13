@@ -1,6 +1,9 @@
 import { retrieveRawInitData } from '@tma.js/sdk-react';
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+const configuredBase: unknown = import.meta.env.VITE_API_BASE_URL;
+const BASE = typeof configuredBase === 'string'
+  ? configuredBase
+  : 'http://localhost:3000';
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {

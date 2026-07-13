@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: gallery_e2e
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d gallery_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/gallery_e2e?schema=public
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: 5432
+      TELEGRAM_BOT_TOKEN: 123456:test-only-token
+      ADMIN_TG_IDS: 1,2
+      TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: 3600
+      R2_ACCOUNT_ID: test-account
+      R2_ACCESS_KEY_ID: test-access-key
+      R2_SECRET_ACCESS_KEY: test-secret-key
+      R2_BUCKET: test-bucket
+      WEB_ORIGINS: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build

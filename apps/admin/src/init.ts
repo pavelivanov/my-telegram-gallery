@@ -68,8 +68,7 @@ export async function init(options: {
   }
 
   if (viewport.mount.isAvailable()) {
-    viewport.mount().then(() => {
-      viewport.bindCssVars();
-    });
+    await viewport.mount();
+    viewport.bindCssVars();
   }
 }

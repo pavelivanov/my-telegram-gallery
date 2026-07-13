@@ -21,7 +21,10 @@ export function Page({ children, back = true, backTo = '/' }: PropsWithChildren<
       return backButton.onClick(() => {
         // The photo viewer pushes its own history entry and closes on
         // popstate — pop that first so back closes the viewer, not the page.
-        if (window.history.state?.photoViewer) {
+        const historyState = window.history.state as {
+          photoViewer?: boolean;
+        } | null;
+        if (historyState?.photoViewer) {
           window.history.back();
         } else {
           navigate(backTo);

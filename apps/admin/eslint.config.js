@@ -15,10 +15,12 @@ export default tseslint.config(
     ],
     plugins: {
       react,
-      'react-hooks': reactHooks
+      'react-hooks': reactHooks,
     },
     languageOptions: {
       parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
         ecmaVersion: 'latest',
         sourceType: 'module',
         ecmaFeatures: {

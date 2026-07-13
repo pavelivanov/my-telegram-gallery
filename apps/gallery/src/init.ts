@@ -68,16 +68,15 @@ export async function init(options: {
   }
 
   if (viewport.mount.isAvailable()) {
-    viewport.mount().then(() => {
-      viewport.bindCssVars();
-      // Open the Mini App in fullscreen where the client supports it
-      // (Bot API 8.0+). Safe-area padding is applied via the CSS vars
-      // bound above (see index.css).
-      if (viewport.requestFullscreen.isAvailable()) {
-        void viewport.requestFullscreen().catch(() => {
-          // Unsupported or rejected — keep the regular expanded view.
-        });
-      }
-    });
+    await viewport.mount();
+    viewport.bindCssVars();
+    // Open the Mini App in fullscreen where the client supports it
+    // (Bot API 8.0+). Safe-area padding is applied via the CSS vars
+    // bound above (see index.css).
+    if (viewport.requestFullscreen.isAvailable()) {
+      void viewport.requestFullscreen().catch(() => {
+        // Unsupported or rejected — keep the regular expanded view.
+      });
+    }
   }
 }

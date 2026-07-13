@@ -86,7 +86,7 @@ export const AlbumsPage: FC = () => {
 
       <form
         className="mx-5 flex flex-col gap-3 rounded-2xl border border-line bg-card p-4"
-        onSubmit={createAlbum}
+        onSubmit={(event) => void createAlbum(event)}
       >
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-ink-dim">
@@ -172,7 +172,7 @@ export const AlbumsPage: FC = () => {
           type="button"
           className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-dim transition-opacity active:opacity-60 disabled:opacity-50"
           disabled={backfilling}
-          onClick={backfillPreviews}
+          onClick={() => void backfillPreviews()}
         >
           {backfilling ? (
             <>

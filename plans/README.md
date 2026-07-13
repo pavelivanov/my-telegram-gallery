@@ -59,7 +59,7 @@ Change:
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |---|---|---:|---:|---|---|
-| [001](001-establish-verification-config-and-auth-baseline.md) | Verification, config, and Telegram-auth baseline | P0 | M | — | TODO |
+| [001](001-establish-verification-config-and-auth-baseline.md) | Verification, config, and Telegram-auth baseline | P0 | M | — | DONE |
 | [002](002-add-storage-drivers-and-safe-media-flows.md) | Storage drivers and safe direct/proxy media | P0 | L | 001 | TODO |
 | [003](003-package-a-single-origin-self-hosted-edition.md) | One-image single-origin self-host edition | P0 | L | 002 | TODO |
 | [004](004-add-tenant-isolation-and-onboarding.md) | Tenant isolation and onboarding | P1 | L | 003 | TODO |

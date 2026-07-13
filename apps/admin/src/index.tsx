@@ -24,14 +24,12 @@ try {
     debug,
     eruda: debug && ['ios', 'android'].includes(platform),
     mockForMacOS: platform === 'macos',
-  })
-    .then(() => {
-      root.render(
-        <StrictMode>
-          <Root/>
-        </StrictMode>,
-      );
-    });
-} catch (e) {
+  });
+  root.render(
+    <StrictMode>
+      <Root/>
+    </StrictMode>,
+  );
+} catch {
   root.render(<EnvUnsupported/>);
 }

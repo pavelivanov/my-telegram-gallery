@@ -20,7 +20,9 @@ export class PhotosService {
 
   /** Step 1 (admin): get a presigned upload URL. */
   async createUpload(albumId: string, contentType: string) {
-    const album = await this.prisma.album.findUnique({ where: { id: albumId } });
+    const album = await this.prisma.album.findUnique({
+      where: { id: albumId },
+    });
     if (!album) throw new NotFoundException('Album not found');
     const key = `photos/${albumId}/${randomUUID()}`;
     const uploadUrl = await this.r2.presignUpload(key, contentType);

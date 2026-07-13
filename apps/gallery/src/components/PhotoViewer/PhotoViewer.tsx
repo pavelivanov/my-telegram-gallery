@@ -72,7 +72,6 @@ export const PhotoViewer: FC<{
   useLayoutEffect(() => {
     const el = track.current;
     if (el) el.scrollLeft = initialIndex * el.clientWidth;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Push a history entry so going back (including the Telegram back

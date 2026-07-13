@@ -26,4 +26,4 @@ echo "Resetting Prisma schema via migrations..."
 # all migrations, and keeps the schema in sync with what runs in production.
 # Run inside apps/api so the Prisma 7 CLI picks up prisma.config.ts (which reads
 # DATABASE_URL from the environment).
-DATABASE_URL="$DATABASE_URL" pnpm --filter api exec prisma migrate reset --force --skip-seed --skip-generate
+DATABASE_URL="$DATABASE_URL" pnpm --filter api exec prisma migrate reset --force

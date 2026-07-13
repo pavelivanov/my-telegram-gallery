@@ -290,7 +290,7 @@ export const AlbumPage: FC = () => {
             <button
               type="button"
               className="mt-3 shrink-0 rounded-full bg-ink/10 px-4 py-2 text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-opacity active:opacity-60"
-              onClick={copyLink}
+              onClick={() => void copyLink()}
             >
               {copied ? '✓ Copied' : 'Share'}
             </button>
@@ -305,7 +305,7 @@ export const AlbumPage: FC = () => {
           type="file"
           accept="image/*"
           multiple
-          onChange={onFiles}
+          onChange={(event) => void onFiles(event)}
         />
         <Button onClick={() => fileInput.current?.click()}>Upload photos</Button>
         {error && (
@@ -334,7 +334,7 @@ export const AlbumPage: FC = () => {
             const next = move(album.photos, event);
             if (next === album.photos) return;
             setAlbum({ ...album, photos: next });
-            persistOrder(next);
+            void persistOrder(next);
           }}
         >
           <div className="grid grid-cols-3 gap-[3px] px-[3px] pb-8">
@@ -372,7 +372,7 @@ export const AlbumPage: FC = () => {
               variant="plain"
               className="text-[#ff5c5c]"
               loading={deleting}
-              onClick={() => deletePhoto(viewer)}
+              onClick={() => void deletePhoto(viewer)}
             >
               Delete
             </Button>

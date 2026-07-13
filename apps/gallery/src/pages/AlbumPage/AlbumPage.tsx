@@ -100,7 +100,7 @@ export const AlbumPage: FC = () => {
             <button
               type="button"
               className="shrink-0 rounded-full bg-ink/10 px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.18em] text-ink transition-opacity active:opacity-60"
-              onClick={copyLink}
+              onClick={() => void copyLink()}
             >
               {copied ? '✓ Copied' : 'Share'}
             </button>

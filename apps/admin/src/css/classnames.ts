@@ -13,7 +13,11 @@ export function isRecord(v: unknown): v is Record<string, unknown> {
  * @param values - values array.
  * @returns Final class name.
  */
-export function classNames(...values: any[]): string {
+function isArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
+export function classNames(...values: unknown[]): string {
   return values
     .map((value) => {
       if (typeof value === 'string') {
@@ -24,7 +28,7 @@ export function classNames(...values: any[]): string {
         return classNames(Object.entries(value).map((entry) => entry[1] && entry[0]));
       }
 
-      if (Array.isArray(value)) {
+      if (isArray(value)) {
         return classNames(...value);
       }
     })
@@ -42,9 +46,12 @@ type UnionRequiredKeys<U> = U extends U
 
 type UnionOptionalKeys<U> = Exclude<UnionStringKeys<U>, UnionRequiredKeys<U>>;
 
-export type MergeClassNames<Tuple extends any[]> =
+export type MergeClassNames<Tuple extends readonly unknown[]> =
 // Removes all types from union that will be ignored by the mergeClassNames function.
-  Exclude<Tuple[number], number | string | null | undefined | any[] | boolean> extends infer Union
+  Exclude<
+    Tuple[number],
+    number | string | null | undefined | readonly unknown[] | boolean
+  > extends infer Union
     ?
     & { [K in UnionRequiredKeys<Union>]: string; }
     & { [K in UnionOptionalKeys<Union>]?: string; }
@@ -58,16 +65,19 @@ export type MergeClassNames<Tuple extends any[]> =
  * @returns An object with keys from all objects with merged values.
  * @see classNames
  */
-export function mergeClassNames<T extends any[]>(...partials: T): MergeClassNames<T> {
-  return partials.reduce<MergeClassNames<T>>((acc, partial) => {
+export function mergeClassNames<T extends readonly unknown[]>(
+  ...partials: T
+): MergeClassNames<T> {
+  const result: Record<string, string> = {};
+  partials.forEach((partial) => {
     if (isRecord(partial)) {
       Object.entries(partial).forEach(([key, value]) => {
-        const className = classNames((acc as any)[key], value);
+        const className = classNames(result[key], value);
         if (className) {
-          (acc as any)[key] = className;
+          result[key] = className;
         }
       });
     }
-    return acc;
-  }, {} as MergeClassNames<T>);
+  });
+  return result as MergeClassNames<T>;
 }
