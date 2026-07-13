@@ -19,6 +19,7 @@ apps/api/generated/
 .DS_Store
 *.log
 coverage/
+output/
 
 .playwright-mcp
 .playwright-cli/

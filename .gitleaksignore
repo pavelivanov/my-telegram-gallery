@@ -1,0 +1,4 @@
+# Public CircleCI status-badge token inherited from the original NestJS
+# template README. This exact historical fingerprint is not an application
+# credential; keep the exception narrower than a rule/path allowlist.
+36c817cf68c039191ddb8d8ead075ace8abea9c8:apps/api/README.md:generic-api-key:5

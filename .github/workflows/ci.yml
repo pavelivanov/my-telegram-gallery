@@ -10,8 +10,24 @@ permissions:
   contents: read
 
 jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan the complete Git history for secrets
+        run: >-
+          docker run --rm
+          -v "$PWD:/repo" -w /repo
+          zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git --redact --no-banner --no-color --log-opts=--all .
+
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -42,27 +58,42 @@ jobs:
       R2_BUCKET: test-bucket
       WEB_ORIGINS: ""
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           run_install: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm audit:dependencies
       - run: pnpm check
       - run: pnpm build
 
   container:
-    needs: verify
+    needs: [secrets, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - run: docker build --tag my-telegram-gallery:ci .
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Build the traceable CI image
+        run: >-
+          docker build
+          --build-arg BUILD_CREATED="$(git show -s --format=%cI HEAD)"
+          --build-arg BUILD_REVISION="$GITHUB_SHA"
+          --build-arg BUILD_SOURCE="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          --build-arg BUILD_VERSION="0.0.0-ci.$GITHUB_RUN_NUMBER"
+          --tag my-telegram-gallery:ci .
       - name: Verify non-root runtime
         run: test "$(docker inspect --format '{{.Config.User}}' my-telegram-gallery:ci)" = node
+      - name: Verify source revision label
+        run: >-
+          test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' my-telegram-gallery:ci)" = "$GITHUB_SHA"
       - name: Smoke the self-host stack
         env:
           SMOKE_BUILD: "false"
