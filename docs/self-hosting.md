@@ -51,6 +51,11 @@ Edit `.env` and provide at least:
 - `TELEGRAM_GALLERY_APP_SHORT_NAME`
 - `ADMIN_TG_IDS` (comma-separated numeric Telegram user IDs)
 
+Keep `TENANCY_MODE=single` for the normal self-hosted setup. In this mode the
+configured administrator IDs manage the automatically created default gallery;
+no membership row is required. Multi-tenant hosting and the safe transition
+procedure are documented in [tenancy.md](tenancy.md).
+
 Then validate and start the stack:
 
 ```bash

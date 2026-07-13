@@ -18,6 +18,7 @@
 - **Depends on**: `plans/003-package-a-single-origin-self-hosted-edition.md`
 - **Category**: security, architecture, direction
 - **Planned at**: commit `9282d53`, 2026-07-13; dirty working tree
+- **Execution status**: DONE (2026-07-13)
 
 ## Why this matters
 
@@ -294,16 +295,16 @@ Use at least tenants A and B, owners A and B, viewer V, and non-owner X.
 
 ## Done criteria
 
-- [ ] `pnpm check && pnpm build` exits 0.
-- [ ] Empty and populated database migrations pass.
-- [ ] Database constraints reject cross-tenant Album/Photo/UploadIntent links.
-- [ ] Two-tenant E2E matrix passes every read and write isolation case.
-- [ ] No admin authorization trusts `start_param` or a tenant header alone.
-- [ ] Every gallery/admin cache key includes tenant identity where applicable.
-- [ ] Existing `album_<id>` shares keep working.
-- [ ] Single mode is the default and needs no database membership for env admins.
-- [ ] No bot token is stored in Tenant.
-- [ ] Only in-scope files plus `plans/README.md` changed.
+- [x] `pnpm check && pnpm build` exits 0.
+- [x] Empty and populated database migrations pass.
+- [x] Database constraints reject cross-tenant Album/Photo/UploadIntent links.
+- [x] Two-tenant E2E matrix passes every read and write isolation case.
+- [x] No admin authorization trusts `start_param` or a tenant header alone.
+- [x] Every gallery/admin cache key includes tenant identity where applicable.
+- [x] Existing `album_<id>` shares keep working.
+- [x] Single mode is the default and needs no database membership for env admins.
+- [x] No bot token is stored in Tenant.
+- [x] Only in-scope files plus `plans/README.md` changed.
 
 ## STOP conditions
 

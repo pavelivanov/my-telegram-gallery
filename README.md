@@ -14,7 +14,9 @@ NestJS API at `/api/`.
 | Caddy | Public HTTP/HTTPS and automatic certificates |
 
 Both Mini Apps use the same Telegram bot. The API validates signed Telegram init
-data for all protected routes and separately checks `ADMIN_TG_IDS` for writes.
+data for all protected routes. In the default `single` mode it checks
+`ADMIN_TG_IDS` for writes; in `multi` mode it checks database-backed tenant owner
+memberships and scopes every album, photo, intent, object key, and media URL.
 Runtime public config contains only the bot username, the two Mini App short
 names, tenancy mode, and upload limit—never tokens, administrator IDs, storage
 credentials, paths, or signing secrets.
@@ -40,6 +42,7 @@ overwriting them.
 The complete DNS, BotFather, backup, S3, troubleshooting, and Railway guidance
 is in [docs/self-hosting.md](docs/self-hosting.md). Read
 [docs/upgrading.md](docs/upgrading.md) before updating a live installation.
+See [docs/tenancy.md](docs/tenancy.md) before enabling multi mode.
 
 ## Repository layout
 
@@ -96,10 +99,12 @@ Important public operational routes:
 | `GET /api/config/public` | Non-secret BotFather identity and public limits |
 | `GET /api/health/live` | Process liveness, without dependency calls |
 | `GET /api/health/ready` | Bounded PostgreSQL and storage readiness |
-| `GET /api/media/photos/:id/:variant` | Signed proxy media delivery |
+| `GET /api/media/tenants/:tenantId/photos/:id/:variant` | Tenant-bound signed proxy media delivery |
+| `GET/POST /api/tenants` | Owned galleries and multi-mode onboarding |
 
 Album and upload routes require `Authorization: tma <initDataRaw>`; mutations
-also require an ID in `ADMIN_TG_IDS`. Uploads use a server-created intent,
+require an env administrator in single mode or the selected tenant's owner in
+multi mode. Uploads use a server-created intent,
 then either a same-origin proxy PUT or presigned S3 PUT, followed by confirmation
 with the intent ID. Clients never choose or receive raw storage keys.
 

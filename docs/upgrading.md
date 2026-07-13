@@ -50,3 +50,7 @@ the prior release cannot run against the upgraded schema, stop the stack and
 restore the matching pre-upgrade database backup before starting the rollback
 image. Restore the media backup too if the failed release changed stored
 objects. Never delete named volumes merely to retry an upgrade.
+
+The tenant migration has additional ordering and rollback constraints. Follow
+[tenancy.md](tenancy.md#transition-an-existing-installation-to-multi-mode)
+before changing `TENANCY_MODE` on an existing installation.
