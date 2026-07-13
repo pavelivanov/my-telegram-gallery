@@ -14,6 +14,11 @@ import { getPlanPolicy } from '../src/plans/plan-policy';
 import { PhotosService } from '../src/photos/photos.service';
 import { OpsService } from '../src/ops/ops.service';
 import { UsageService } from '../src/usage/usage.service';
+import { BillingService } from '../src/billing/billing.service';
+import {
+  TelegramApiError,
+  TelegramApiService,
+} from '../src/telegram/telegram-api.service';
 import { createTelegramInitData } from './helpers/telegram-init-data';
 
 interface AlbumResponseBody {
@@ -902,6 +907,569 @@ describe('Tenant isolation (e2e)', () => {
   });
 
   afterAll(async () => {
+    await app?.close();
+  });
+});
+
+class FakeTelegramApiService {
+  readonly invoices: Array<{ amountStars: number; payload: string }> = [];
+  readonly preCheckoutAnswers: Array<{
+    errorMessage?: string;
+    id: string;
+    ok: boolean;
+  }> = [];
+  readonly subscriptionEdits: Array<{
+    canceled: boolean;
+    payerTgUserId: bigint;
+    telegramPaymentChargeId: string;
+  }> = [];
+  readonly refunds: Array<{
+    payerTgUserId: bigint;
+    telegramPaymentChargeId: string;
+  }> = [];
+  readonly messages: Array<{ chatId: number; text: string }> = [];
+  failNextPreCheckout = false;
+  failNextRefund = false;
+
+  createInvoiceLink(input: { amountStars: number; payload: string }) {
+    this.invoices.push(input);
+    return Promise.resolve(`https://t.me/$${input.payload}`);
+  }
+
+  answerPreCheckoutQuery(input: {
+    errorMessage?: string;
+    id: string;
+    ok: boolean;
+  }) {
+    if (this.failNextPreCheckout) {
+      this.failNextPreCheckout = false;
+      throw new TelegramApiError('answerPreCheckoutQuery', true, 503);
+    }
+    this.preCheckoutAnswers.push(input);
+    return Promise.resolve(true);
+  }
+
+  editUserStarSubscription(input: {
+    canceled: boolean;
+    payerTgUserId: bigint;
+    telegramPaymentChargeId: string;
+  }) {
+    this.subscriptionEdits.push(input);
+    return Promise.resolve(true);
+  }
+
+  refundStarPayment(input: {
+    payerTgUserId: bigint;
+    telegramPaymentChargeId: string;
+  }) {
+    if (this.failNextRefund) {
+      this.failNextRefund = false;
+      throw new TelegramApiError('refundStarPayment', false, 400);
+    }
+    this.refunds.push(input);
+    return Promise.resolve(true);
+  }
+
+  sendMessage(chatId: number, text: string) {
+    this.messages.push({ chatId, text });
+    return Promise.resolve({ message_id: this.messages.length });
+  }
+}
+
+interface BillingStateBody {
+  configured: boolean;
+  plan: 'free' | 'pro';
+  priceStars: number | null;
+  subscription: {
+    cancelAtPeriodEnd: boolean;
+    currentPeriodEnd: string;
+    status: 'active' | 'expired' | 'grace';
+  } | null;
+  testMode: boolean;
+}
+
+describe('Telegram Stars billing (e2e)', () => {
+  const webhookSecret = 'e2e_webhook_secret_32_characters_minimum';
+  const fakeTelegram = new FakeTelegramApiService();
+  let app: INestApplication<App>;
+  let prisma: PrismaService;
+  let billing: BillingService;
+  let ops: OpsService;
+  let authorization: string;
+  let tenant: TenantResponseBody;
+  let checkoutId: string;
+  let latestCharge = 'billing_charge_first';
+
+  function webhook(update: Record<string, unknown>) {
+    return request(app.getHttpServer())
+      .post('/api/telegram/webhook')
+      .set('X-Telegram-Bot-Api-Secret-Token', webhookSecret)
+      .send(update);
+  }
+
+  function paymentUpdate(
+    updateId: number,
+    chargeId: string,
+    periodEndSeconds: number,
+    options: { expiration?: boolean; first?: boolean } = {},
+  ) {
+    return {
+      update_id: updateId,
+      message: {
+        message_id: updateId,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: 501 },
+        from: { id: 501 },
+        successful_payment: {
+          currency: 'XTR',
+          total_amount: 250,
+          invoice_payload: checkoutId,
+          ...(options.expiration === false
+            ? {}
+            : { subscription_expiration_date: periodEndSeconds }),
+          is_recurring: true,
+          ...(options.first ? { is_first_recurring: true } : {}),
+          telegram_payment_charge_id: chargeId,
+          provider_payment_charge_id: '',
+        },
+      },
+    };
+  }
+
+  beforeAll(async () => {
+    const multiEnvironment = validateEnv({
+      ...process.env,
+      ADMIN_TG_ID: '',
+      ADMIN_TG_IDS: '',
+      TENANCY_MODE: 'multi',
+      TELEGRAM_BOT_API_TEST_MODE: 'true',
+      TELEGRAM_WEBHOOK_SECRET: webhookSecret,
+      BILLING_PRO_PRICE_STARS: '250',
+      PAY_SUPPORT_CONTACT: '@e2e_payment_support',
+      BILLING_TERMS_URL: 'https://example.test/terms',
+      BILLING_PRIVACY_URL: 'https://example.test/privacy',
+      RATE_LIMIT_WEBHOOK: '120',
+    });
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(ConfigService)
+      .useValue(new ConfigService(multiEnvironment))
+      .overrideProvider(TelegramApiService)
+      .useValue(fakeTelegram)
+      .compile();
+    app = moduleRef.createNestApplication({ bodyParser: false });
+    configureApp(app);
+    await app.init();
+    prisma = app.get(PrismaService);
+    billing = app.get(BillingService);
+    ops = app.get(OpsService);
+    authorization = `tma ${createTelegramInitData({
+      botToken: process.env.TELEGRAM_BOT_TOKEN!,
+      user: { id: 501, first_name: 'Billing Owner' },
+    })}`;
+    const response = await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization)
+      .send({ name: 'Billing Gallery', slug: 'billing_gallery' })
+      .expect(201);
+    tenant = response.body as TenantResponseBody;
+  });
+
+  it('fails the webhook closed and applies its tighter body limit', async () => {
+    await request(app.getHttpServer())
+      .post('/api/telegram/webhook')
+      .send({ update_id: 9000 })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/telegram/webhook')
+      .set('X-Telegram-Bot-Api-Secret-Token', 'wrong_secret'.repeat(4))
+      .send({ update_id: 9001 })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/api/telegram/webhook')
+      .set('X-Telegram-Bot-Api-Secret-Token', webhookSecret)
+      .send({ update_id: 9002, padding: 'x'.repeat(70_000) })
+      .expect(413);
+  });
+
+  it('refuses checkout for a non-owner and a suspended tenant', async () => {
+    const nonOwnerAuthorization = `tma ${createTelegramInitData({
+      botToken: process.env.TELEGRAM_BOT_TOKEN!,
+      user: { id: 502, first_name: 'Not an owner' },
+    })}`;
+    await request(app.getHttpServer())
+      .post('/api/billing/checkout')
+      .set('Authorization', nonOwnerAuthorization)
+      .set('X-Tenant-Slug', tenant.slug)
+      .expect(403);
+
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { status: 'SUSPENDED' },
+    });
+    await request(app.getHttpServer())
+      .post('/api/billing/checkout')
+      .set('Authorization', authorization)
+      .set('X-Tenant-Slug', tenant.slug)
+      .expect(403);
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { status: 'ACTIVE' },
+    });
+    expect(fakeTelegram.invoices).toHaveLength(0);
+  });
+
+  it('creates an authoritative opaque checkout for the tenant owner', async () => {
+    await request(app.getHttpServer())
+      .get('/api/billing')
+      .set('Authorization', authorization)
+      .set('X-Tenant-Slug', tenant.slug)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          configured: true,
+          plan: 'free',
+          priceStars: 250,
+          testMode: true,
+        });
+      });
+    await request(app.getHttpServer())
+      .post('/api/billing/checkout')
+      .set('Authorization', authorization)
+      .set('X-Tenant-Slug', tenant.slug)
+      .expect(201)
+      .expect((response) => {
+        const body = response.body as Record<string, unknown>;
+        expect(typeof body.invoiceUrl).toBe('string');
+        expect(body.invoiceUrl).toMatch(/^https:\/\/t\.me\/\$/);
+        expect(body.billing).toBeNull();
+      });
+    expect(fakeTelegram.invoices).toHaveLength(1);
+    expect(fakeTelegram.invoices[0].amountStars).toBe(250);
+    checkoutId = fakeTelegram.invoices[0].payload;
+    expect(checkoutId).toMatch(/^[a-z0-9]+$/);
+    expect(checkoutId).not.toContain(tenant.id);
+  });
+
+  it('rejects a successful-payment event that skipped pre-checkout', async () => {
+    const periodEnd = Math.floor(Date.now() / 1000) + 2_592_000;
+    await webhook(
+      paymentUpdate(9050, 'billing_charge_without_precheckout', periodEnd, {
+        first: true,
+      }),
+    )
+      .expect(200)
+      .expect({ status: 'rejected' });
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'FREE' });
+    expect(
+      await prisma.billingPayment.count({
+        where: {
+          telegramPaymentChargeId: 'billing_charge_without_precheckout',
+        },
+      }),
+    ).toBe(0);
+  });
+
+  it('answers pre-checkout on every branch and retries only transient work', async () => {
+    const valid = {
+      update_id: 9100,
+      pre_checkout_query: {
+        id: 'pre_checkout_valid',
+        from: { id: 501 },
+        currency: 'XTR',
+        total_amount: 250,
+        invoice_payload: checkoutId,
+      },
+    };
+    fakeTelegram.failNextPreCheckout = true;
+    await webhook(valid).expect(503);
+    expect(
+      await prisma.telegramUpdate.findUniqueOrThrow({
+        where: { updateId: 9100n },
+      }),
+    ).toMatchObject({ status: 'RETRYABLE', attempts: 1 });
+    await webhook(valid).expect(200).expect({ status: 'processed' });
+    await webhook(valid).expect(200).expect({ status: 'duplicate' });
+    expect(fakeTelegram.preCheckoutAnswers).toEqual([
+      expect.objectContaining({ id: 'pre_checkout_valid', ok: true }),
+    ]);
+
+    await webhook({
+      ...valid,
+      update_id: 9102,
+      pre_checkout_query: {
+        ...valid.pre_checkout_query,
+        id: 'pre_checkout_second_purchase',
+      },
+    })
+      .expect(200)
+      .expect({ status: 'rejected' });
+    expect(fakeTelegram.preCheckoutAnswers.at(-1)).toMatchObject({
+      id: 'pre_checkout_second_purchase',
+      ok: false,
+    });
+
+    await webhook({
+      update_id: 9101,
+      pre_checkout_query: {
+        id: 'pre_checkout_wrong_amount',
+        from: { id: 501 },
+        currency: 'XTR',
+        total_amount: 249,
+        invoice_payload: checkoutId,
+      },
+    })
+      .expect(200)
+      .expect({ status: 'rejected' });
+    expect(fakeTelegram.preCheckoutAnswers.at(-1)).toMatchObject({
+      id: 'pre_checkout_wrong_amount',
+      ok: false,
+    });
+  });
+
+  it('grants only an authoritative successful payment and deduplicates charges', async () => {
+    const firstPeriodEnd = Math.floor(Date.now() / 1000) + 2_592_000;
+    await webhook(
+      paymentUpdate(9200, 'billing_charge_missing_expiry', firstPeriodEnd, {
+        expiration: false,
+      }),
+    )
+      .expect(200)
+      .expect({ status: 'rejected' });
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'FREE' });
+
+    await webhook(
+      paymentUpdate(9201, latestCharge, firstPeriodEnd, { first: true }),
+    )
+      .expect(200)
+      .expect({ status: 'processed' });
+    await webhook(
+      paymentUpdate(9202, latestCharge, firstPeriodEnd, { first: true }),
+    )
+      .expect(200)
+      .expect({ status: 'processed' });
+    await webhook(
+      paymentUpdate(9201, latestCharge, firstPeriodEnd, { first: true }),
+    )
+      .expect(200)
+      .expect({ status: 'duplicate' });
+    expect(
+      await prisma.billingPayment.count({
+        where: { telegramPaymentChargeId: latestCharge },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'PRO' });
+  });
+
+  it('returns current Pro state instead of creating a duplicate invoice', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/billing/checkout')
+      .set('Authorization', authorization)
+      .set('X-Tenant-Slug', tenant.slug)
+      .expect(201);
+    expect(response.body as BillingStateBody).toMatchObject({
+      invoiceUrl: null,
+      billing: { plan: 'pro' },
+    });
+    expect(fakeTelegram.invoices).toHaveLength(1);
+  });
+
+  it('never shortens out-of-order renewals and serializes concurrent delivery', async () => {
+    const before = await prisma.subscription.findUniqueOrThrow({
+      where: { tenantId: tenant.id },
+    });
+    const olderEnd = Math.floor(Date.now() / 1000) + 10 * 24 * 60 * 60;
+    await webhook(paymentUpdate(9300, 'billing_charge_older', olderEnd))
+      .expect(200)
+      .expect({ status: 'processed' });
+    expect(
+      await prisma.subscription.findUniqueOrThrow({
+        where: { tenantId: tenant.id },
+      }),
+    ).toMatchObject({ currentPeriodEnd: before.currentPeriodEnd });
+
+    const laterEnd =
+      Math.floor(before.currentPeriodEnd.getTime() / 1000) + 2_592_000;
+    latestCharge = 'billing_charge_concurrent';
+    const deliveries = await Promise.all([
+      webhook(paymentUpdate(9301, latestCharge, laterEnd)),
+      webhook(paymentUpdate(9302, latestCharge, laterEnd)),
+    ]);
+    expect(deliveries.map(({ status }) => status)).toEqual([200, 200]);
+    expect(
+      await prisma.billingPayment.count({
+        where: { telegramPaymentChargeId: latestCharge },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.subscription.findUniqueOrThrow({
+        where: { tenantId: tenant.id },
+      }),
+    ).toMatchObject({ currentPeriodEnd: new Date(laterEnd * 1000) });
+  });
+
+  it('cancels and re-enables renewal without changing current access', async () => {
+    const cancel = await request(app.getHttpServer())
+      .post('/api/billing/subscription/cancel')
+      .set('Authorization', authorization)
+      .set('X-Tenant-Slug', tenant.slug)
+      .expect(201);
+    expect(cancel.body as BillingStateBody).toMatchObject({
+      plan: 'pro',
+      subscription: { cancelAtPeriodEnd: true, status: 'active' },
+    });
+    expect(fakeTelegram.subscriptionEdits.at(-1)).toMatchObject({
+      canceled: true,
+      telegramPaymentChargeId: 'billing_charge_first',
+    });
+    const restored = await request(app.getHttpServer())
+      .post('/api/billing/subscription/re-enable')
+      .set('Authorization', authorization)
+      .set('X-Tenant-Slug', tenant.slug)
+      .expect(201);
+    expect(restored.body as BillingStateBody).toMatchObject({
+      plan: 'pro',
+      subscription: { cancelAtPeriodEnd: false, status: 'active' },
+    });
+  });
+
+  it('enters grace, downgrades without deletion, and accepts a later renewal', async () => {
+    await prisma.subscription.update({
+      where: { tenantId: tenant.id },
+      data: {
+        status: 'ACTIVE',
+        currentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        graceEndsAt: null,
+      },
+    });
+    await expect(
+      billing.expire({ dryRun: false, limit: 10, tenantSlug: tenant.slug }),
+    ).resolves.toMatchObject({
+      applied: 1,
+      results: [expect.objectContaining({ action: 'enter_grace' })],
+    });
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'PRO' });
+
+    await prisma.subscription.update({
+      where: { tenantId: tenant.id },
+      data: {
+        status: 'GRACE',
+        currentPeriodEnd: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+      },
+    });
+    await expect(
+      billing.expire({ dryRun: false, limit: 10, tenantSlug: tenant.slug }),
+    ).resolves.toMatchObject({
+      applied: 1,
+      results: [expect.objectContaining({ action: 'downgrade' })],
+    });
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'FREE' });
+
+    const latestStoredPeriod = await prisma.billingPayment.aggregate({
+      where: { tenantId: tenant.id },
+      _max: { periodEnd: true },
+    });
+    const renewedEnd =
+      Math.floor(
+        (latestStoredPeriod._max.periodEnd ?? new Date()).getTime() / 1000,
+      ) + 2_592_000;
+    latestCharge = 'billing_charge_after_grace';
+    await webhook(paymentUpdate(9400, latestCharge, renewedEnd))
+      .expect(200)
+      .expect({ status: 'processed' });
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'PRO' });
+  });
+
+  it('answers paysupport and applies an audited idempotent refund policy', async () => {
+    await webhook({
+      update_id: 9500,
+      message: {
+        message_id: 9500,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: 501 },
+        from: { id: 501 },
+        text: '/paysupport',
+      },
+    })
+      .expect(200)
+      .expect({ status: 'processed' });
+    expect(fakeTelegram.messages.at(-1)?.text).toContain(
+      '@e2e_payment_support',
+    );
+    expect(fakeTelegram.messages.at(-1)?.text).toContain(
+      'Never send bot tokens',
+    );
+
+    const payment = await prisma.billingPayment.findUniqueOrThrow({
+      where: { telegramPaymentChargeId: latestCharge },
+    });
+    fakeTelegram.failNextRefund = true;
+    await expect(
+      ops.refundPayment(payment.id, 'e2e-operator', 'Approved E2E refund'),
+    ).rejects.toThrow('Telegram could not complete the refund');
+    expect(
+      await prisma.billingPayment.findUniqueOrThrow({
+        where: { id: payment.id },
+      }),
+    ).toMatchObject({ refundStatus: 'FAILED' });
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'PRO' });
+
+    const refunded = await ops.refundPayment(
+      payment.id,
+      'e2e-operator',
+      'Approved E2E refund',
+    );
+    expect(refunded).toMatchObject({
+      paymentId: payment.id,
+      refundStatus: 'REFUNDED',
+      downgraded: true,
+      duplicate: false,
+    });
+    await expect(
+      ops.refundPayment(payment.id, 'e2e-operator', 'Approved E2E refund'),
+    ).resolves.toMatchObject({ duplicate: true });
+    expect(fakeTelegram.refunds).toContainEqual({
+      payerTgUserId: 501n,
+      telegramPaymentChargeId: latestCharge,
+    });
+    expect(
+      await prisma.operatorAudit.count({
+        where: { tenantId: tenant.id, action: 'PAYMENT_REFUNDED' },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
+    ).toMatchObject({ plan: 'FREE' });
+  });
+
+  afterAll(async () => {
+    if (prisma && tenant) {
+      await prisma.billingPayment.deleteMany({
+        where: { tenantId: tenant.id },
+      });
+      await prisma.subscription.deleteMany({ where: { tenantId: tenant.id } });
+      await prisma.billingCheckout.deleteMany({
+        where: { tenantId: tenant.id },
+      });
+      await prisma.operatorAudit.deleteMany({ where: { tenantId: tenant.id } });
+      await prisma.tenant.delete({ where: { id: tenant.id } });
+      await prisma.telegramUpdate.deleteMany({
+        where: { updateId: { gte: 9000n, lte: 9999n } },
+      });
+    }
     await app?.close();
   });
 });

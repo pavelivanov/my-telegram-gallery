@@ -37,6 +37,7 @@ legacy_migrations=(
 )
 tenant_migration="$ROOT_DIR/apps/api/prisma/migrations/7_tenant_core/migration.sql"
 guardrails_migration="$ROOT_DIR/apps/api/prisma/migrations/8_saas_guardrails/migration.sql"
+billing_migration="$ROOT_DIR/apps/api/prisma/migrations/9_telegram_stars_billing/migration.sql"
 fixture_dir="$ROOT_DIR/apps/api/test/fixtures"
 
 rehearse_tenant_migration() {
@@ -65,6 +66,10 @@ rehearse_tenant_migration \
 echo "Rehearsing the guardrails migration on the populated tenant fixture..."
 execute_sql "$guardrails_migration"
 execute_sql "$fixture_dir/guardrails-migration-populated-verify.sql"
+
+echo "Rehearsing the billing migration on the populated tenant fixture..."
+execute_sql "$billing_migration"
+execute_sql "$fixture_dir/billing-migration-populated-verify.sql"
 
 echo "Resetting Prisma schema via recorded migrations..."
 # E2E wants a clean DB every run. `migrate reset` drops the database, re-applies

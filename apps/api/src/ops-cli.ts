@@ -66,6 +66,12 @@ async function runOps(): Promise<void> {
         actor,
         required(args, '--note', 500),
       );
+    } else if (resource === 'payment' && action === 'refund') {
+      result = await ops.refundPayment(
+        required(args, '--payment', 64),
+        actor,
+        required(args, '--reason', 500),
+      );
     } else {
       throw new Error('Unknown operator command');
     }

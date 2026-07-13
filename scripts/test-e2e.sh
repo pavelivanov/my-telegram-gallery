@@ -37,6 +37,12 @@ export TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-123456:test-only-token}"
 export TELEGRAM_BOT_USERNAME="${TELEGRAM_BOT_USERNAME:-test_gallery_bot}"
 export TELEGRAM_ADMIN_APP_SHORT_NAME="${TELEGRAM_ADMIN_APP_SHORT_NAME:-admin_app}"
 export TELEGRAM_GALLERY_APP_SHORT_NAME="${TELEGRAM_GALLERY_APP_SHORT_NAME:-gallery_app}"
+export TELEGRAM_BOT_API_TEST_MODE="${TELEGRAM_BOT_API_TEST_MODE:-true}"
+export TELEGRAM_WEBHOOK_SECRET="${TELEGRAM_WEBHOOK_SECRET:-e2e_webhook_secret_32_characters_minimum}"
+export BILLING_PRO_PRICE_STARS="${BILLING_PRO_PRICE_STARS:-250}"
+export PAY_SUPPORT_CONTACT="${PAY_SUPPORT_CONTACT:-@e2e_payment_support}"
+export BILLING_TERMS_URL="${BILLING_TERMS_URL:-https://example.test/terms}"
+export BILLING_PRIVACY_URL="${BILLING_PRIVACY_URL:-https://example.test/privacy}"
 export ADMIN_TG_IDS="${ADMIN_TG_IDS:-1,2}"
 export TENANCY_MODE="${TENANCY_MODE:-single}"
 export TELEGRAM_INIT_DATA_MAX_AGE_SECONDS="${TELEGRAM_INIT_DATA_MAX_AGE_SECONDS:-3600}"
@@ -83,6 +89,10 @@ pnpm --filter api uploads:cleanup --apply --limit 1000
 pnpm --filter api uploads:cleanup --apply --limit 1000
 pnpm --filter api usage:reconcile --dry-run --limit 1000
 pnpm --filter api usage:reconcile --apply --limit 1000
+pnpm --filter api billing:expire --dry-run --limit 1000
+pnpm --filter api billing:expire --apply --limit 1000
+pnpm --filter api billing:expire --apply --limit 1000
+pnpm --filter api billing:reconcile --limit 1000
 pnpm --filter api usage:reconcile --apply --limit 1000
 
 export OPS_TOKEN="e2e-operator-token"

@@ -20,6 +20,9 @@
     "tenant:bootstrap": "pnpm --filter api build && pnpm --filter api tenant:bootstrap",
     "uploads:cleanup": "pnpm --filter api build && pnpm --filter api uploads:cleanup",
     "usage:reconcile": "pnpm --filter api build && pnpm --filter api usage:reconcile",
+    "billing:expire": "pnpm --filter api build && pnpm --filter api billing:expire",
+    "billing:reconcile": "pnpm --filter api build && pnpm --filter api billing:reconcile",
+    "telegram:webhook": "pnpm --filter api build && pnpm --filter api telegram:webhook",
     "ops": "pnpm --filter api build && pnpm --filter api ops"
   },
   "engines": {

@@ -7,12 +7,14 @@ import {
 import { getPlanPolicy, PLAN_POLICY_VERSION } from '../plans/plan-policy';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotaService } from '../quota/quota.service';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class OpsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly quota: QuotaService,
+    private readonly billing: BillingService,
   ) {}
 
   async listOpenReports(limit: number) {
@@ -126,5 +128,9 @@ export class OpsService {
         return { reportId, status: nextStatus, auditId: audit.id };
       },
     );
+  }
+
+  refundPayment(paymentId: string, actor: string, reason: string) {
+    return this.billing.refundPayment(paymentId, actor, reason);
   }
 }
