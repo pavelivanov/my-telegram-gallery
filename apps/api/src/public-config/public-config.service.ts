@@ -6,7 +6,9 @@ export interface PublicConfig {
   botUsername: string;
   adminAppShortName: string;
   galleryAppShortName: string;
+  privacyUrl: string | null;
   tenancyMode: TenancyMode;
+  termsUrl: string | null;
   uploadMaxBytes: number;
 }
 
@@ -23,7 +25,9 @@ export class PublicConfigService {
       galleryAppShortName: this.config.getOrThrow<string>(
         'TELEGRAM_GALLERY_APP_SHORT_NAME',
       ),
+      privacyUrl: this.config.get<string>('BILLING_PRIVACY_URL') ?? null,
       tenancyMode: this.config.getOrThrow<TenancyMode>('TENANCY_MODE'),
+      termsUrl: this.config.get<string>('BILLING_TERMS_URL') ?? null,
       uploadMaxBytes: this.config.getOrThrow<number>('UPLOAD_MAX_BYTES'),
     };
   }

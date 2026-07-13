@@ -5,11 +5,18 @@ export interface PublicConfig {
   botUsername: string;
   adminAppShortName: string;
   galleryAppShortName: string;
+  privacyUrl: string | null;
   tenancyMode: 'single' | 'multi';
+  termsUrl: string | null;
   uploadMaxBytes: number;
 }
 
 let configPromise: Promise<PublicConfig> | undefined;
+
+interface PublicConfigState {
+  config: PublicConfig | null;
+  failed: boolean;
+}
 
 export function getPublicConfig(): Promise<PublicConfig> {
   configPromise ??= fetch(apiUrl('/api/config/public')).then(
@@ -23,22 +30,31 @@ export function getPublicConfig(): Promise<PublicConfig> {
   return configPromise;
 }
 
-export function usePublicConfig(): PublicConfig | null {
-  const [config, setConfig] = useState<PublicConfig | null>(null);
+export function usePublicConfigState(): PublicConfigState {
+  const [state, setState] = useState<PublicConfigState>({
+    config: null,
+    failed: false,
+  });
 
   useEffect(() => {
     let active = true;
     void getPublicConfig()
       .then((value) => {
-        if (active) setConfig(value);
+        if (active) setState({ config: value, failed: false });
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setState({ config: null, failed: true });
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  return config;
+  return state;
+}
+
+export function usePublicConfig(): PublicConfig | null {
+  return usePublicConfigState().config;
 }
 
 export function buildGalleryAlbumLink(
@@ -49,6 +65,12 @@ export function buildGalleryAlbumLink(
     throw new Error('Album ID cannot be used in a Telegram start parameter');
   }
   return buildGalleryStartLink(config, `album_${albumId}`);
+}
+
+export function buildAdminHomeLink(config: PublicConfig): string {
+  return new URL(
+    `https://t.me/${config.botUsername}/${config.adminAppShortName}`,
+  ).toString();
 }
 
 export function buildGalleryHomeLink(

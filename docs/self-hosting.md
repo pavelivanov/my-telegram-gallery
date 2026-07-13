@@ -3,7 +3,9 @@
 This is the supported production topology: one immutable application image
 serves the gallery at `/`, the administrator Mini App at `/admin/`, and the API
 at `/api/`. PostgreSQL and Caddy run beside it in Docker Compose. Filesystem
-media is stored in a named volume by default.
+media is stored in a named volume by default. Opening `/` in an ordinary browser
+shows a public landing page whose Telegram CTA is built from runtime bot/app
+configuration; gallery records are still available only inside Telegram.
 
 ## Prerequisites
 

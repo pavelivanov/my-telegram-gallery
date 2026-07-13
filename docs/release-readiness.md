@@ -68,6 +68,14 @@ identifiers.
   findings, and zero high/critical findings. This follow-up record changes only
   documentation; the eventual release revision and independent
   production-shaped drill still require their own evidence.
+- The gallery bundle now distinguishes a verified Telegram Mini App environment
+  from an ordinary browser. Browser visitors receive a responsive, data-free
+  product landing page with runtime-derived Telegram and optional legal links;
+  Telegram initialization failures retain a separate compatibility state.
+  Desktop and 390-by-844 mobile browser rehearsals passed with no horizontal
+  overflow. The page uses only project code/CSS and introduces no marketing
+  asset-ownership claim. Public copy and configured legal destinations still
+  require owner review before launch.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.

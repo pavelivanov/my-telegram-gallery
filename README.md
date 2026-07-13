@@ -1,16 +1,18 @@
 # my-telegram-gallery
 
 A self-hostable Telegram gallery with two Mini Apps and one production image.
-The public gallery lives at `/`, the administrator app at `/admin/`, and the
-NestJS API at `/api/`.
+The gallery and public browser landing page share `/`, the administrator app
+lives at `/admin/`, and the NestJS API at `/api/`.
 
 > **Pre-release:** no public release or support SLA exists yet. The source
 > license, ownership, security contact, release signing, and clean-environment
 > acceptance gates are still pending. Do not redistribute a release candidate.
 
-The current product is Telegram-only: signed Telegram Mini App init data is the
-authentication boundary. Standalone browser accounts, public non-Telegram
-galleries, collaborator roles, and bring-your-own bots are not supported.
+Gallery content and administration remain Telegram-only: signed Telegram Mini
+App init data is the authentication boundary. Ordinary browsers see a public
+product landing page, never gallery data. Standalone browser accounts, public
+non-Telegram galleries, collaborator roles, and bring-your-own bots are not
+supported.
 
 ## Production topology
 
@@ -26,8 +28,8 @@ data for all protected routes. In the default `single` mode it checks
 `ADMIN_TG_IDS` for writes; in `multi` mode it checks database-backed tenant owner
 memberships and scopes every album, photo, intent, object key, and media URL.
 Runtime public config contains only the bot username, the two Mini App short
-names, tenancy mode, and upload limit—never tokens, administrator IDs, storage
-credentials, paths, or signing secrets.
+names, tenancy mode, upload limit, and optional public Terms/Privacy URLs—never
+tokens, administrator IDs, storage credentials, paths, or signing secrets.
 
 ## Supported modes
 
@@ -111,6 +113,8 @@ The admin development URL includes `/admin/`. For Telegram testing, use the
 corresponding `dev:https` scripts or a trusted HTTPS tunnel. An optional
 `VITE_API_BASE_URL` remains available only for legacy split-origin
 development; production builds default to same-origin requests.
+Append `?landing` to the gallery development URL to preview the ordinary-browser
+landing page without disabling the development Telegram mock globally.
 
 ## API shape
 

@@ -5,7 +5,9 @@ export interface PublicConfig {
   botUsername: string;
   adminAppShortName: string;
   galleryAppShortName: string;
+  privacyUrl: string | null;
   tenancyMode: 'single' | 'multi';
+  termsUrl: string | null;
   uploadMaxBytes: number;
 }
 
