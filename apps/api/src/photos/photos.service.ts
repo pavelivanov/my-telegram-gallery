@@ -76,18 +76,19 @@ export class PhotosService {
     }
     const album = await this.prisma.album.findUnique({
       where: { id: dto.albumId },
-      select: { id: true },
+      select: { id: true, tenantId: true },
     });
     if (!album) throw new NotFoundException('Album not found');
 
     const uploadId = randomUUID();
-    const key = `photos/${album.id}/${uploadId}/original`;
+    const key = `tenants/${album.tenantId}/photos/${album.id}/${uploadId}/original`;
     const expiresAt = new Date(Date.now() + this.intentTtlSeconds * 1000);
     await this.prisma.uploadIntent.create({
       data: {
         id: uploadId,
         key,
         albumId: album.id,
+        tenantId: album.tenantId,
         expectedMimeType: dto.contentType,
         expectedSize: dto.size,
         expiresAt,
@@ -412,6 +413,7 @@ export class PhotosService {
             const photo = await tx.photo.create({
               data: {
                 albumId: current.albumId,
+                tenantId: current.tenantId,
                 key: current.key,
                 thumbKey: variants.thumbKey,
                 previewKey: variants.previewKey,

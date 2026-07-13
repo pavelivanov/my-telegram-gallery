@@ -61,4 +61,17 @@ export NODE_ENV="test"
 export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--experimental-vm-modules"
 
 bash scripts/e2e-db-prepare.sh
+
+pnpm --filter api build
+bootstrap_tenant=(
+  pnpm --filter api tenant:bootstrap
+  --slug default
+)
+"${bootstrap_tenant[@]}" --owner-tg-id 1
+"${bootstrap_tenant[@]}" --owner-tg-id 1
+if "${bootstrap_tenant[@]}" --owner-tg-id 999; then
+  echo "Tenant bootstrap unexpectedly replaced an existing owner" >&2
+  exit 1
+fi
+
 pnpm --filter api test:e2e --runInBand

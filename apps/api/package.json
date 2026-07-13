@@ -14,6 +14,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/src/main",
     "cleanup:uploads": "node dist/src/cleanup-uploads",
+    "tenant:bootstrap": "node dist/src/tenant-bootstrap",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
     "lint:fix": "eslint \"{src,test}/**/*.ts\" --max-warnings 0 --fix",
     "test": "jest",

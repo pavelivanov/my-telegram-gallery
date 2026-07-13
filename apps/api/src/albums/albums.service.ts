@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DEFAULT_TENANT_ID } from '../tenants/tenant.constants';
 
 @Injectable()
 export class AlbumsService {
@@ -14,7 +15,9 @@ export class AlbumsService {
   ) {}
 
   create(name: string) {
-    return this.prisma.album.create({ data: { name } });
+    return this.prisma.album.create({
+      data: { name, tenantId: DEFAULT_TENANT_ID },
+    });
   }
 
   /** Albums newest-first, each with photo count and a cover photo URL. */

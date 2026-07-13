@@ -8,14 +8,53 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TenantPlan {
+  FREE
+}
+
+enum TenantRole {
+  OWNER
+}
+
+model Tenant {
+  id          String             @id @default(cuid())
+  slug        String             @unique
+  name        String
+  status      TenantStatus       @default(ACTIVE)
+  plan        TenantPlan         @default(FREE)
+  memberships TenantMembership[]
+  albums      Album[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model TenantMembership {
+  tenantId  String
+  tgUserId  BigInt
+  role      TenantRole @default(OWNER)
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@id([tenantId, tgUserId])
+  @@index([tgUserId])
+}
+
 model Album {
   id            String         @id @default(cuid())
+  tenantId      String
   name          String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   photos        Photo[]
   uploadIntents UploadIntent[]
   createdAt     DateTime       @default(now())
 
-  @@index([createdAt])
+  @@unique([id, tenantId])
+  @@index([tenantId, createdAt])
 }
 
 model Photo {
@@ -28,12 +67,13 @@ model Photo {
   width        Int?
   height       Int?
   position     Int           @default(0) // manual sort order within the album (asc)
-  album        Album         @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  tenantId     String
+  album        Album         @relation(fields: [albumId, tenantId], references: [id, tenantId], onDelete: Cascade)
   albumId      String
   uploadIntent UploadIntent?
   createdAt    DateTime      @default(now())
 
-  @@index([albumId, position])
+  @@index([tenantId, albumId, position])
 }
 
 enum UploadIntentStatus {
@@ -47,7 +87,8 @@ enum UploadIntentStatus {
 model UploadIntent {
   id               String             @id @default(cuid())
   key              String             @unique
-  album            Album              @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  tenantId         String
+  album            Album              @relation(fields: [albumId, tenantId], references: [id, tenantId], onDelete: Cascade)
   albumId          String
   expectedMimeType String
   expectedSize     Int
@@ -58,6 +99,6 @@ model UploadIntent {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
-  @@index([status, expiresAt])
-  @@index([albumId])
+  @@index([tenantId, status, expiresAt])
+  @@index([tenantId, albumId])
 }
