@@ -221,6 +221,9 @@ function TenantNavigation({
             {selected.usage.photoCount}/{selected.usage.photoLimit} photos ·{' '}
             {formatBytes(storageCommitted)}/
             {formatBytes(BigInt(selected.usage.storageLimitBytes))}
+            {selected.openReportCount > 0
+              ? ` · ${selected.openReportCount} report${selected.openReportCount === 1 ? '' : 's'} under review`
+              : ''}
           </span>
         </label>
         <div className="flex shrink-0 items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em]">

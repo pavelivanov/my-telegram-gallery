@@ -13,6 +13,7 @@ export type TgRequest = Request & {
   /** Compatibility alias for existing guards and request handlers. */
   tgUser?: TgUser;
   tenantContext?: TenantContext;
+  requestId?: string;
 };
 
 export function requireTenantContext(request: TgRequest): TenantContext {

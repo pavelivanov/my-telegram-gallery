@@ -15,10 +15,20 @@ import { HealthModule } from './health/health.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { QuotaModule } from './quota/quota.module';
 import { UsageModule } from './usage/usage.module';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { createRateLimitOptions } from './security/rate-limit';
+import { RateLimitModule } from './security/rate-limit.module';
+import { ReportsModule } from './reports/reports.module';
+import { OpsModule } from './ops/ops.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: createRateLimitOptions,
+    }),
+    RateLimitModule,
     ServeStaticModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -43,6 +53,8 @@ import { UsageModule } from './usage/usage.module';
     PrismaModule,
     QuotaModule,
     UsageModule,
+    ReportsModule,
+    OpsModule,
     StorageModule,
     TenantsModule,
     AlbumsModule,

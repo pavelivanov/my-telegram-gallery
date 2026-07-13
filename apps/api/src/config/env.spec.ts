@@ -36,6 +36,13 @@ describe('validateEnv', () => {
     expect(env.UPLOAD_INTENT_TTL_SECONDS).toBe(600);
     expect(env.MEDIA_URL_TTL_SECONDS).toBe(3600);
     expect(env.READINESS_TIMEOUT_MS).toBe(3000);
+    expect(env.JSON_BODY_LIMIT_BYTES).toBe(128 * 1024);
+    expect(env.TRUST_PROXY_HOPS).toBe(0);
+    expect(env.RATE_LIMIT_TTL_MS).toBe(60_000);
+    expect(env.RATE_LIMIT_GENERAL).toBe(120);
+    expect(env.RATE_LIMIT_ADMIN).toBe(60);
+    expect(env.RATE_LIMIT_UPLOAD).toBe(20);
+    expect(env.RATE_LIMIT_REPORT).toBe(5);
     expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
     expect(env.TENANCY_MODE).toBe('single');
   });
@@ -155,6 +162,11 @@ describe('validateEnv', () => {
       { READINESS_TIMEOUT_MS: '99' },
       'between 100',
     ],
+    ['invalid body limit', { JSON_BODY_LIMIT_BYTES: '1000' }, 'between 1024'],
+    ['invalid proxy hops', { TRUST_PROXY_HOPS: '4' }, 'between 0'],
+    ['invalid rate limit', { RATE_LIMIT_REPORT: '0' }, 'between 1'],
+    ['invalid ops hash', { OPS_TOKEN_SHA256: 'not-a-hash' }, 'SHA-256'],
+    ['invalid ops actor', { OPS_ACTOR: 'bad actor' }, 'safe identity'],
   ])('rejects %s', (_name, overrides, message) => {
     expect(() => validateEnv(validEnvironment(overrides))).toThrow(message);
   });

@@ -13,8 +13,8 @@ export class HealthController {
   @Get('ready')
   async ready() {
     try {
-      await this.health.checkReady();
-      return { status: 'ready' };
+      const signals = await this.health.checkReady();
+      return { status: 'ready', signals };
     } catch {
       throw new ServiceUnavailableException({ status: 'not_ready' });
     }

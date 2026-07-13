@@ -56,17 +56,23 @@ export class UsageService {
     options: ReconcileTenantOptions,
   ): Promise<TenantUsageReconciliation> {
     if (options.apply) {
-      return this.quota.withTenantLock(tenantId, (transaction, tenant) =>
-        this.inspectAndMaybeApply(transaction, tenant, options),
+      return this.quota.withTenantLock(
+        tenantId,
+        (transaction, tenant) =>
+          this.inspectAndMaybeApply(transaction, tenant, options),
+        { timeoutMs: 120_000 },
       );
     }
-    return this.prisma.$transaction(async (transaction) => {
-      const tenant = await transaction.tenant.findUnique({
-        where: { id: tenantId },
-      });
-      if (!tenant) throw new NotFoundException('Tenant not found');
-      return this.inspectAndMaybeApply(transaction, tenant, options);
-    });
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const tenant = await transaction.tenant.findUnique({
+          where: { id: tenantId },
+        });
+        if (!tenant) throw new NotFoundException('Tenant not found');
+        return this.inspectAndMaybeApply(transaction, tenant, options);
+      },
+      { timeout: 120_000 },
+    );
   }
 
   private async inspectAndMaybeApply(

@@ -7,13 +7,15 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { TgRequest } from '../auth/request-context';
 import { TgInitDataGuard } from '../auth/tg-init-data.guard';
 import { CreateTenantDto } from './tenants.dto';
+import { UseRateLimit } from '../security/rate-limit';
 import { TenantsService } from './tenants.service';
 
 @Controller('tenants')
-@UseGuards(TgInitDataGuard)
+@UseGuards(TgInitDataGuard, ThrottlerGuard)
 export class TenantsController {
   constructor(private readonly tenants: TenantsService) {}
 
@@ -23,6 +25,7 @@ export class TenantsController {
   }
 
   @Post()
+  @UseRateLimit('admin')
   create(@Req() request: TgRequest, @Body() dto: CreateTenantDto) {
     return this.tenants.create(request.tgAuth!.user, dto.name, dto.slug);
   }

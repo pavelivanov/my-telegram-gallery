@@ -3,6 +3,8 @@ import { isAbsolute, resolve } from 'node:path';
 const DEFAULT_INIT_DATA_MAX_AGE_SECONDS = 3600;
 const DEFAULT_MEDIA_URL_TTL_SECONDS = 3600;
 const DEFAULT_READINESS_TIMEOUT_MS = 3000;
+const DEFAULT_JSON_BODY_LIMIT_BYTES = 128 * 1024;
+const DEFAULT_RATE_LIMIT_TTL_MS = 60_000;
 const DEFAULT_UPLOAD_INTENT_TTL_SECONDS = 600;
 const DEFAULT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 const MAX_INIT_DATA_MAX_AGE_SECONDS = 86_400;
@@ -38,6 +40,15 @@ export interface AppEnvironment {
   MEDIA_URL_SIGNING_SECRET: string;
   MEDIA_URL_TTL_SECONDS: number;
   READINESS_TIMEOUT_MS: number;
+  JSON_BODY_LIMIT_BYTES: number;
+  TRUST_PROXY_HOPS: number;
+  RATE_LIMIT_TTL_MS: number;
+  RATE_LIMIT_GENERAL: number;
+  RATE_LIMIT_ADMIN: number;
+  RATE_LIMIT_UPLOAD: number;
+  RATE_LIMIT_REPORT: number;
+  OPS_TOKEN_SHA256?: string;
+  OPS_ACTOR?: string;
   STATIC_ROOT?: string;
 }
 
@@ -409,6 +420,70 @@ export function validateEnv(
     30_000,
     errors,
   );
+  const jsonBodyLimit = parseInteger(
+    config,
+    'JSON_BODY_LIMIT_BYTES',
+    DEFAULT_JSON_BODY_LIMIT_BYTES,
+    1024,
+    1024 * 1024,
+    errors,
+  );
+  const trustProxyHops = parseInteger(
+    config,
+    'TRUST_PROXY_HOPS',
+    0,
+    0,
+    3,
+    errors,
+  );
+  const rateLimitTtl = parseInteger(
+    config,
+    'RATE_LIMIT_TTL_MS',
+    DEFAULT_RATE_LIMIT_TTL_MS,
+    1000,
+    3_600_000,
+    errors,
+  );
+  const rateLimitGeneral = parseInteger(
+    config,
+    'RATE_LIMIT_GENERAL',
+    120,
+    1,
+    10_000,
+    errors,
+  );
+  const rateLimitAdmin = parseInteger(
+    config,
+    'RATE_LIMIT_ADMIN',
+    60,
+    1,
+    10_000,
+    errors,
+  );
+  const rateLimitUpload = parseInteger(
+    config,
+    'RATE_LIMIT_UPLOAD',
+    20,
+    1,
+    10_000,
+    errors,
+  );
+  const rateLimitReport = parseInteger(
+    config,
+    'RATE_LIMIT_REPORT',
+    5,
+    1,
+    10_000,
+    errors,
+  );
+  const opsTokenSha256 = readString(config, 'OPS_TOKEN_SHA256');
+  if (opsTokenSha256 && !/^[a-f0-9]{64}$/.test(opsTokenSha256)) {
+    errors.push('OPS_TOKEN_SHA256 must be a lowercase SHA-256 hex digest');
+  }
+  const opsActor = readString(config, 'OPS_ACTOR');
+  if (opsActor && !/^[A-Za-z0-9_.@-]{2,64}$/.test(opsActor)) {
+    errors.push('OPS_ACTOR must be 2-64 safe identity characters');
+  }
 
   if (errors.length > 0) {
     throw new Error(
@@ -433,6 +508,15 @@ export function validateEnv(
     MEDIA_URL_SIGNING_SECRET: mediaSigningSecret,
     MEDIA_URL_TTL_SECONDS: mediaUrlTtl,
     READINESS_TIMEOUT_MS: readinessTimeout,
+    JSON_BODY_LIMIT_BYTES: jsonBodyLimit,
+    TRUST_PROXY_HOPS: trustProxyHops,
+    RATE_LIMIT_TTL_MS: rateLimitTtl,
+    RATE_LIMIT_GENERAL: rateLimitGeneral,
+    RATE_LIMIT_ADMIN: rateLimitAdmin,
+    RATE_LIMIT_UPLOAD: rateLimitUpload,
+    RATE_LIMIT_REPORT: rateLimitReport,
+    OPS_TOKEN_SHA256: opsTokenSha256,
+    OPS_ACTOR: opsActor,
     STATIC_ROOT: staticRoot,
   };
 }

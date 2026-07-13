@@ -13,18 +13,23 @@ export class QuotaService {
   async withTenantLock<T>(
     tenantId: string,
     work: (transaction: QuotaTransaction, tenant: Tenant) => Promise<T>,
+    options: { timeoutMs?: number } = {},
   ): Promise<T> {
-    return this.prisma.$transaction(async (transaction) => {
-      const locked = await transaction.$queryRaw<Array<{ id: string }>>(
-        Prisma.sql`SELECT "id" FROM "Tenant" WHERE "id" = ${tenantId} FOR UPDATE`,
-      );
-      if (locked.length !== 1) throw new NotFoundException('Tenant not found');
-      const tenant = await transaction.tenant.findUnique({
-        where: { id: tenantId },
-      });
-      if (!tenant) throw new NotFoundException('Tenant not found');
-      return work(transaction, tenant);
-    });
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const locked = await transaction.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`SELECT "id" FROM "Tenant" WHERE "id" = ${tenantId} FOR UPDATE`,
+        );
+        if (locked.length !== 1)
+          throw new NotFoundException('Tenant not found');
+        const tenant = await transaction.tenant.findUnique({
+          where: { id: tenantId },
+        });
+        if (!tenant) throw new NotFoundException('Tenant not found');
+        return work(transaction, tenant);
+      },
+      { timeout: options.timeoutMs ?? 5000 },
+    );
   }
 
   async withOwnerLock<T>(

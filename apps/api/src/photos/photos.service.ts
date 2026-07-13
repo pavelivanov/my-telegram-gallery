@@ -234,9 +234,24 @@ export class PhotosService {
         },
       );
     } catch (error) {
-      await this.storage.delete(intent.key).catch((cleanupError: unknown) => {
+      try {
+        await this.storage.delete(intent.key);
+      } catch (cleanupError) {
+        await this.prisma.uploadIntent.updateMany({
+          where: {
+            id: intent.id,
+            tenantId: context.id,
+            status: { not: UploadIntentStatus.CONFIRMED },
+          },
+          data: { status: UploadIntentStatus.FAILED },
+        });
         this.logger.error('Partial upload cleanup failed', cleanupError);
-      });
+        throw new InternalServerErrorException(
+          'Upload cleanup must be retried',
+          { cause: cleanupError },
+        );
+      }
+      await this.releaseReservation(context.id, intent.id, 'FAILED');
       throw new BadRequestException('Upload failed', { cause: error });
     }
 
@@ -250,6 +265,7 @@ export class PhotosService {
     });
     if (updated.count !== 1) {
       await this.storage.delete(intent.key);
+      await this.releaseReservation(context.id, intent.id, 'FAILED');
       throw new ConflictException('Upload intent changed during upload');
     }
     return { ok: true };

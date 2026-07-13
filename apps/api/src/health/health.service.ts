@@ -11,7 +11,7 @@ export class HealthService {
     private readonly config: ConfigService,
   ) {}
 
-  async checkReady(): Promise<void> {
+  async checkReady(): Promise<{ staleUploadReservations: number }> {
     const timeoutMs = this.config.getOrThrow<number>('READINESS_TIMEOUT_MS');
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
@@ -22,13 +22,20 @@ export class HealthService {
     });
 
     try {
-      await Promise.race([
+      const [rows] = await Promise.race([
         Promise.all([
-          this.prisma.$queryRawUnsafe('SELECT 1'),
+          this.prisma.$queryRawUnsafe<Array<{ staleReservations: number }>>(
+            `SELECT COUNT(*)::INTEGER AS "staleReservations"
+             FROM "UploadIntent"
+             WHERE "reservationReleasedAt" IS NULL
+               AND "expiresAt" <= CURRENT_TIMESTAMP
+               AND "status" IN ('PENDING', 'UPLOADED', 'FAILED')`,
+          ),
           this.storage.checkReady(),
         ]),
         timeout,
       ]);
+      return { staleUploadReservations: rows[0]?.staleReservations ?? 0 };
     } finally {
       if (timer) clearTimeout(timer);
     }

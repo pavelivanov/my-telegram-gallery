@@ -5,11 +5,14 @@ import {
   Query,
   Res,
   StreamableFile,
+  UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { MediaService } from './media.service';
 
 @Controller('media')
+@UseGuards(ThrottlerGuard)
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 

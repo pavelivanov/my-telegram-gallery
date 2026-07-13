@@ -12,6 +12,7 @@ import { validateEnv } from '../src/config/env';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { getPlanPolicy } from '../src/plans/plan-policy';
 import { PhotosService } from '../src/photos/photos.service';
+import { OpsService } from '../src/ops/ops.service';
 import { UsageService } from '../src/usage/usage.service';
 import { createTelegramInitData } from './helpers/telegram-init-data';
 
@@ -46,7 +47,10 @@ describe('Application (e2e)', () => {
   let defaultPhotoId: string;
 
   beforeAll(async () => {
-    app = await NestFactory.create(AppModule, { logger: false });
+    app = await NestFactory.create(AppModule, {
+      logger: false,
+      bodyParser: false,
+    });
     configureApp(app);
     await app.init();
     authorization = `tma ${createTelegramInitData({
@@ -60,11 +64,13 @@ describe('Application (e2e)', () => {
       .get('/api/health/live')
       .expect(200)
       .expect('X-Content-Type-Options', 'nosniff')
+      .expect('Referrer-Policy', 'no-referrer')
+      .expect('X-Request-Id', /.+/)
       .expect({ status: 'ok' });
     await request(app.getHttpServer())
       .get('/api/health/ready')
       .expect(200)
-      .expect({ status: 'ready' });
+      .expect({ status: 'ready', signals: { staleUploadReservations: 0 } });
   });
 
   it('serves gallery and admin assets without swallowing API 404s', async () => {
@@ -109,6 +115,28 @@ describe('Application (e2e)', () => {
       .set('Authorization', authorization)
       .send({ name: 'Valid name', unexpected: true })
       .expect(400);
+  });
+
+  it('propagates safe request IDs and rejects oversized JSON bodies', async () => {
+    await request(app.getHttpServer())
+      .get('/api/config/public')
+      .set('X-Request-Id', 'client_request_123')
+      .expect(200)
+      .expect('X-Request-Id', 'client_request_123');
+
+    await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization)
+      .send({ name: 'x'.repeat(140_000) })
+      .expect(413)
+      .expect((response) => {
+        const body = response.body as {
+          requestId: string;
+          statusCode: number;
+        };
+        expect(body.statusCode).toBe(413);
+        expect(typeof body.requestId).toBe('string');
+      });
   });
 
   it('uploads, confirms, serializes, and streams an image through proxy mode', async () => {
@@ -273,6 +301,7 @@ describe('Tenant isolation (e2e)', () => {
   let alphaAlbum: AlbumResponseBody;
   let betaAlbum: AlbumResponseBody;
   let alphaPhoto: PhotoResponseBody;
+  let betaPhoto: PhotoResponseBody;
 
   function authorization(userId: number, startParam?: string): string {
     return `tma ${createTelegramInitData({
@@ -288,6 +317,7 @@ describe('Tenant isolation (e2e)', () => {
       ADMIN_TG_ID: '',
       ADMIN_TG_IDS: '',
       TENANCY_MODE: 'multi',
+      RATE_LIMIT_REPORT: '2',
     });
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -295,7 +325,7 @@ describe('Tenant isolation (e2e)', () => {
       .overrideProvider(ConfigService)
       .useValue(new ConfigService(multiEnvironment))
       .compile();
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication({ bodyParser: false });
     configureApp(app);
     await app.init();
     prisma = app.get(PrismaService);
@@ -544,6 +574,7 @@ describe('Tenant isolation (e2e)', () => {
       .send({ uploadId: betaIntent.uploadId })
       .expect(201);
     const betaConfirmed = betaConfirmedResponse.body as PhotoResponseBody;
+    betaPhoto = betaConfirmed;
 
     await request(app.getHttpServer())
       .get('/api/photos')
@@ -595,6 +626,94 @@ describe('Tenant isolation (e2e)', () => {
         },
       }),
     ).rejects.toBeDefined();
+  });
+
+  it('accepts bounded reports and keeps operator actions outside tenant auth', async () => {
+    const unsafeDetail = '<script>never render this</script>';
+    const first = await request(app.getHttpServer())
+      .post('/api/reports')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ reason: 'OTHER', detail: unsafeDetail })
+      .expect(201);
+    const reportId = (first.body as { id: string }).id;
+    expect(JSON.stringify(first.body)).not.toContain(unsafeDetail);
+    expect(
+      await prisma.report.findUniqueOrThrow({ where: { id: reportId } }),
+    ).toMatchObject({ detail: unsafeDetail, reporterTgUserId: 303n });
+    await request(app.getHttpServer())
+      .get('/api/tenants')
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual([
+          expect.objectContaining({
+            id: alpha.id,
+            openReportCount: 1,
+          }),
+        ]);
+      });
+
+    await request(app.getHttpServer())
+      .post('/api/reports')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ reason: 'SPAM' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'REPORT_ALREADY_OPEN' });
+      });
+    await request(app.getHttpServer())
+      .post('/api/reports')
+      .set('Authorization', authorization(303))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ albumId: alphaAlbum.id, reason: 'SPAM' })
+      .expect(429)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'RATE_LIMITED' });
+      });
+    await request(app.getHttpServer())
+      .post('/api/reports')
+      .set('Authorization', authorization(404))
+      .set('X-Tenant-Slug', beta.slug)
+      .send({ photoId: betaPhoto.id, reason: 'SPAM' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get('/api/ops/reports')
+      .set('Authorization', authorization(101))
+      .expect(404);
+
+    const ops = app.get(OpsService);
+    const suspended = await ops.setTenantSuspension(
+      alpha.slug,
+      true,
+      'e2e-operator',
+      'E2E suspension check',
+    );
+    expect(suspended.status).toBe('SUSPENDED');
+    await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ name: 'Blocked while suspended' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'TENANT_SUSPENDED' });
+      });
+    const unsuspended = await ops.setTenantSuspension(
+      alpha.slug,
+      false,
+      'e2e-operator',
+      'E2E suspension check complete',
+    );
+    expect(unsuspended.status).toBe('ACTIVE');
+    await expect(
+      ops.closeReport(reportId, 'resolved', 'e2e-operator', 'Reviewed in E2E'),
+    ).resolves.toMatchObject({ reportId, status: 'RESOLVED' });
+    expect(
+      await prisma.operatorAudit.count({ where: { tenantId: alpha.id } }),
+    ).toBe(3);
   });
 
   it('serializes last-byte reservations and keeps deletion accounting exact', async () => {

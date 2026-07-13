@@ -4,7 +4,9 @@ import type { ObjectStorage } from '../storage/storage.types';
 import { HealthService } from './health.service';
 
 function createService() {
-  const queryRawUnsafe = jest.fn().mockResolvedValue([{ '?column?': 1 }]);
+  const queryRawUnsafe = jest
+    .fn()
+    .mockResolvedValue([{ staleReservations: 0 }]);
   const checkStorageReady = jest.fn().mockResolvedValue(undefined);
   const prisma = {
     $queryRawUnsafe: queryRawUnsafe,
@@ -24,8 +26,12 @@ describe('HealthService', () => {
   it('reports ready only after database and storage checks succeed', async () => {
     const { checkStorageReady, queryRawUnsafe, service } = createService();
 
-    await expect(service.checkReady()).resolves.toBeUndefined();
-    expect(queryRawUnsafe).toHaveBeenCalledWith('SELECT 1');
+    await expect(service.checkReady()).resolves.toEqual({
+      staleUploadReservations: 0,
+    });
+    expect(queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('reservationReleasedAt'),
+    );
     expect(checkStorageReady).toHaveBeenCalledTimes(1);
   });
 

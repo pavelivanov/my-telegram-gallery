@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, TenantRole } from '../../generated/prisma/client';
+import {
+  Prisma,
+  ReportStatus,
+  TenantRole,
+} from '../../generated/prisma/client';
 import type { TgUser } from '../auth/tg-init-data.guard';
 import type { TenancyMode } from '../config/env';
 import { getPlanPolicy, PLAN_POLICY_VERSION } from '../plans/plan-policy';
@@ -33,6 +37,11 @@ export class TenantsService {
       this.assertSingleAdmin(user);
       const tenant = await this.prisma.tenant.findUnique({
         where: { slug: DEFAULT_TENANT_SLUG },
+        include: {
+          _count: {
+            select: { reports: { where: { status: ReportStatus.OPEN } } },
+          },
+        },
       });
       return tenant ? [this.serialize(tenant)] : [];
     }
@@ -44,6 +53,11 @@ export class TenantsService {
         },
       },
       orderBy: [{ name: 'asc' }, { slug: 'asc' }],
+      include: {
+        _count: {
+          select: { reports: { where: { status: ReportStatus.OPEN } } },
+        },
+      },
     });
     return tenants.map((tenant) => this.serialize(tenant));
   }
@@ -109,7 +123,14 @@ export class TenantsService {
     if (this.mode === 'single') {
       this.assertSingleAdmin(user);
       if (slug !== DEFAULT_TENANT_SLUG) throw new NotFoundException();
-      const tenant = await this.prisma.tenant.findUnique({ where: { slug } });
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { slug },
+        include: {
+          _count: {
+            select: { reports: { where: { status: ReportStatus.OPEN } } },
+          },
+        },
+      });
       if (!tenant) throw new NotFoundException();
       return this.serialize(tenant);
     }
@@ -119,6 +140,11 @@ export class TenantsService {
         slug,
         memberships: {
           some: { role: TenantRole.OWNER, tgUserId: BigInt(user.id) },
+        },
+      },
+      include: {
+        _count: {
+          select: { reports: { where: { status: ReportStatus.OPEN } } },
         },
       },
     });
@@ -144,6 +170,7 @@ export class TenantsService {
     photoCount: number;
     status: string;
     updatedAt: Date;
+    _count?: { reports: number };
   }) {
     const policy = getPlanPolicy(tenant.plan as 'FREE' | 'PRO');
     return {
@@ -153,6 +180,7 @@ export class TenantsService {
       status: tenant.status.toLowerCase(),
       plan: tenant.plan.toLowerCase(),
       policyVersion: PLAN_POLICY_VERSION,
+      openReportCount: tenant._count?.reports ?? 0,
       usage: {
         albumCount: tenant.albumCount,
         albumLimit: policy.maxAlbums,

@@ -19,12 +19,12 @@ SET "storedBytes" = GREATEST("size"::BIGINT, 0);
 UPDATE "UploadIntent"
 SET
     "reservedBytes" = CASE
-        WHEN "status" IN ('PENDING', 'UPLOADED') AND "expiresAt" > CURRENT_TIMESTAMP
+        WHEN "status" IN ('PENDING', 'UPLOADED', 'FAILED')
             THEN GREATEST("expectedSize"::BIGINT, 0)
         ELSE 0
     END,
     "reservationReleasedAt" = CASE
-        WHEN "status" IN ('PENDING', 'UPLOADED') AND "expiresAt" > CURRENT_TIMESTAMP
+        WHEN "status" IN ('PENDING', 'UPLOADED', 'FAILED')
             THEN NULL
         ELSE COALESCE("updatedAt", CURRENT_TIMESTAMP)
     END;

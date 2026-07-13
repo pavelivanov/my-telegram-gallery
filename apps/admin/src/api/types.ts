@@ -30,6 +30,7 @@ export interface AlbumDetail {
 
 export interface Tenant {
   name: string;
+  openReportCount: number;
   plan: string;
   policyVersion: string;
   slug: string;

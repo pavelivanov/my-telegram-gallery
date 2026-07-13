@@ -8,15 +8,17 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { AdminGuard } from '../auth/admin.guard';
 import { requireTenantContext, type TgRequest } from '../auth/request-context';
 import { TgInitDataGuard } from '../auth/tg-init-data.guard';
 import { TenantContextGuard } from '../tenants/tenant-context.guard';
+import { UseRateLimit } from '../security/rate-limit';
 import { CreateAlbumDto, ReorderPhotosDto } from './albums.dto';
 import { AlbumsService } from './albums.service';
 
 @Controller('albums')
-@UseGuards(TgInitDataGuard, TenantContextGuard)
+@UseGuards(TgInitDataGuard, TenantContextGuard, ThrottlerGuard)
 export class AlbumsController {
   constructor(private readonly albums: AlbumsService) {}
 
@@ -33,12 +35,14 @@ export class AlbumsController {
   /** Admin TMA only. */
   @Post()
   @UseGuards(AdminGuard)
+  @UseRateLimit('admin')
   create(@Req() request: TgRequest, @Body() dto: CreateAlbumDto) {
     return this.albums.create(requireTenantContext(request), dto.name);
   }
 
   @Put(':id/order')
   @UseGuards(AdminGuard)
+  @UseRateLimit('admin')
   reorder(
     @Req() request: TgRequest,
     @Param('id') id: string,

@@ -35,6 +35,8 @@ export const AlbumPage: FC = () => {
   });
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [reportResult, setReportResult] = useState<string | null>(null);
 
   // Deep link into this album (handled by StartParamRedirect on launch).
   const shareLink = buildGalleryAlbumLink(config, id);
@@ -56,6 +58,31 @@ export const AlbumPage: FC = () => {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Clipboard unavailable — ignore.
+    }
+  };
+
+  const reportAlbum = async () => {
+    if (
+      !album ||
+      reporting ||
+      !window.confirm('Report this album to the service operator?')
+    ) return;
+    setReporting(true);
+    setReportResult(null);
+    try {
+      await api(
+        '/reports',
+        {
+          method: 'POST',
+          body: JSON.stringify({ albumId: album.id, reason: 'OTHER' }),
+        },
+        album.tenantSlug,
+      );
+      setReportResult('Report sent. Thank you.');
+    } catch (caught) {
+      setReportResult((caught as Error).message);
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -157,6 +184,22 @@ export const AlbumPage: FC = () => {
           ))}
         </ul>
       )}
+
+      <div className="px-5 pb-10 text-center">
+        <button
+          type="button"
+          className="text-[12px] text-ink-dim underline decoration-line underline-offset-4 disabled:opacity-50"
+          disabled={reporting}
+          onClick={() => void reportAlbum()}
+        >
+          {reporting ? 'Sending report…' : 'Report this album'}
+        </button>
+        {reportResult && (
+          <p className="mt-2 text-[12px] text-ink-dim [overflow-wrap:anywhere]">
+            {reportResult}
+          </p>
+        )}
+      </div>
 
       {viewerIndex !== null && (
         <PhotoViewer
