@@ -5,10 +5,14 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import sharp from 'sharp';
+import { TenantPlan } from '../generated/prisma/client';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
 import { validateEnv } from '../src/config/env';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { getPlanPolicy } from '../src/plans/plan-policy';
+import { PhotosService } from '../src/photos/photos.service';
+import { UsageService } from '../src/usage/usage.service';
 import { createTelegramInitData } from './helpers/telegram-init-data';
 
 interface AlbumResponseBody {
@@ -38,6 +42,8 @@ interface AlbumDetailResponseBody {
 describe('Application (e2e)', () => {
   let app: INestApplication<App>;
   let authorization: string;
+  let defaultAlbum: AlbumResponseBody;
+  let defaultPhotoId: string;
 
   beforeAll(async () => {
     app = await NestFactory.create(AppModule, { logger: false });
@@ -112,6 +118,7 @@ describe('Application (e2e)', () => {
       .send({ name: 'Proxy upload' })
       .expect(201);
     const albumBody = albumResponse.body as AlbumResponseBody;
+    defaultAlbum = albumBody;
     const image = await sharp({
       create: {
         width: 2,
@@ -150,6 +157,7 @@ describe('Application (e2e)', () => {
       .send({ uploadId: intentBody.uploadId })
       .expect(201);
     const confirmBody = confirmResponse.body as PhotoResponseBody;
+    defaultPhotoId = confirmBody.id;
 
     expect(confirmBody.mimeType).toBe('image/png');
     expect(confirmBody.size).toBe(image.length);
@@ -187,12 +195,7 @@ describe('Application (e2e)', () => {
   });
 
   it('rejects declared image data that Sharp cannot decode', async () => {
-    const album = await request(app.getHttpServer())
-      .post('/api/albums')
-      .set('Authorization', authorization)
-      .send({ name: 'Invalid image' })
-      .expect(201);
-    const albumBody = album.body as AlbumResponseBody;
+    const albumBody = defaultAlbum;
     const bytes = Buffer.from('not an image');
     const intent = await request(app.getHttpServer())
       .post('/api/photos/upload')
@@ -220,7 +223,9 @@ describe('Application (e2e)', () => {
       .get(`/api/albums/${albumBody.id}`)
       .set('Authorization', authorization)
       .expect(200);
-    expect((albumAfter.body as AlbumDetailResponseBody).photos).toEqual([]);
+    expect(
+      (albumAfter.body as AlbumDetailResponseBody).photos.map(({ id }) => id),
+    ).toEqual([defaultPhotoId]);
   });
 
   it('rejects an upload larger than the configured maximum', () => {
@@ -249,6 +254,15 @@ interface TenantResponseBody {
   plan: string;
   slug: string;
   status: string;
+  usage: {
+    albumCount: number;
+    albumLimit: number;
+    photoCount: number;
+    photoLimit: number;
+    storageLimitBytes: string;
+    storageReservedBytes: string;
+    storageUsedBytes: string;
+  };
 }
 
 describe('Tenant isolation (e2e)', () => {
@@ -258,6 +272,7 @@ describe('Tenant isolation (e2e)', () => {
   let beta: TenantResponseBody;
   let alphaAlbum: AlbumResponseBody;
   let betaAlbum: AlbumResponseBody;
+  let alphaPhoto: PhotoResponseBody;
 
   function authorization(userId: number, startParam?: string): string {
     return `tma ${createTelegramInitData({
@@ -319,6 +334,14 @@ describe('Tenant isolation (e2e)', () => {
       .set('Authorization', authorization(101))
       .send({ name: 'Reserved', slug: 'admin' })
       .expect(409);
+    await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization(101))
+      .send({ name: 'Second gallery', slug: 'alpha_second' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'QUOTA_TENANTS' });
+      });
 
     await request(app.getHttpServer())
       .get('/api/tenants')
@@ -344,6 +367,15 @@ describe('Tenant isolation (e2e)', () => {
       .send({ name: 'Alpha album' })
       .expect(201);
     alphaAlbum = alphaAlbumResponse.body as AlbumResponseBody;
+    await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({ name: 'Over the Free limit' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'QUOTA_ALBUMS' });
+      });
 
     await request(app.getHttpServer())
       .post('/api/albums')
@@ -457,6 +489,19 @@ describe('Tenant isolation (e2e)', () => {
       .send({ uploadId: alphaIntent.uploadId })
       .expect(201);
     const confirmed = confirmedResponse.body as PhotoResponseBody;
+    alphaPhoto = confirmed;
+    const confirmedRecord = await prisma.photo.findUnique({
+      where: { id: confirmed.id },
+    });
+    const alphaAfterConfirm = await prisma.tenant.findUnique({
+      where: { id: alpha.id },
+    });
+    expect(confirmedRecord?.storedBytes).toBeGreaterThan(BigInt(image.length));
+    expect(alphaAfterConfirm).toMatchObject({
+      photoCount: 1,
+      storageReservedBytes: 0n,
+      storageUsedBytes: confirmedRecord?.storedBytes,
+    });
     const signedUrl = new URL(confirmed.url, 'http://localhost');
     await request(app.getHttpServer())
       .get(`${signedUrl.pathname}${signedUrl.search}`)
@@ -521,29 +566,6 @@ describe('Tenant isolation (e2e)', () => {
         expect(ids).not.toContain(confirmed.id);
       });
 
-    await prisma.photo.update({
-      where: { id: betaConfirmed.id },
-      data: { previewKey: null, thumbKey: null },
-    });
-    await request(app.getHttpServer())
-      .post('/api/photos/backfill-thumbs')
-      .set('Authorization', authorization(101))
-      .set('X-Tenant-Slug', alpha.slug)
-      .expect(201);
-    expect(
-      await prisma.photo.findUnique({ where: { id: betaConfirmed.id } }),
-    ).toMatchObject({ previewKey: null, thumbKey: null });
-    await request(app.getHttpServer())
-      .post('/api/photos/backfill-thumbs')
-      .set('Authorization', authorization(202))
-      .set('X-Tenant-Slug', beta.slug)
-      .expect(201);
-    const backfilledBeta = await prisma.photo.findUnique({
-      where: { id: betaConfirmed.id },
-    });
-    expect(typeof backfilledBeta?.previewKey).toBe('string');
-    expect(typeof backfilledBeta?.thumbKey).toBe('string');
-
     await request(app.getHttpServer())
       .put(`/api/albums/${alphaAlbum.id}/order`)
       .set('Authorization', authorization(202))
@@ -575,6 +597,161 @@ describe('Tenant isolation (e2e)', () => {
     ).rejects.toBeDefined();
   });
 
+  it('serializes last-byte reservations and keeps deletion accounting exact', async () => {
+    const beforeDelete = await prisma.tenant.findUniqueOrThrow({
+      where: { id: alpha.id },
+    });
+    const photoRecord = await prisma.photo.findUniqueOrThrow({
+      where: { id: alphaPhoto.id },
+    });
+    await request(app.getHttpServer())
+      .delete(`/api/photos/${alphaPhoto.id}`)
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(200);
+    const afterDelete = await prisma.tenant.findUniqueOrThrow({
+      where: { id: alpha.id },
+    });
+    expect(afterDelete.photoCount).toBe(beforeDelete.photoCount - 1);
+    expect(afterDelete.storageUsedBytes).toBe(
+      beforeDelete.storageUsedBytes - photoRecord.storedBytes,
+    );
+
+    const reservationBytes = 512;
+    const storageLimit = getPlanPolicy(TenantPlan.FREE).maxStorageBytes;
+    await prisma.tenant.update({
+      where: { id: alpha.id },
+      data: {
+        photoCount: 0,
+        storageUsedBytes: storageLimit - BigInt(reservationBytes),
+        storageReservedBytes: 0,
+      },
+    });
+    const attempts = await Promise.all([
+      request(app.getHttpServer())
+        .post('/api/photos/upload')
+        .set('Authorization', authorization(101))
+        .set('X-Tenant-Slug', alpha.slug)
+        .send({
+          albumId: alphaAlbum.id,
+          contentType: 'image/png',
+          size: reservationBytes,
+        }),
+      request(app.getHttpServer())
+        .post('/api/photos/upload')
+        .set('Authorization', authorization(101))
+        .set('X-Tenant-Slug', alpha.slug)
+        .send({
+          albumId: alphaAlbum.id,
+          contentType: 'image/png',
+          size: reservationBytes,
+        }),
+    ]);
+    expect(attempts.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(attempts.find(({ status }) => status === 409)?.body).toMatchObject({
+      code: 'QUOTA_STORAGE',
+    });
+    const admitted = attempts.find(({ status }) => status === 201)?.body as
+      | UploadIntentResponseBody
+      | undefined;
+    expect(admitted?.uploadId).toBeDefined();
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: alpha.id } }),
+    ).toMatchObject({ storageReservedBytes: BigInt(reservationBytes) });
+
+    await prisma.$transaction([
+      prisma.uploadIntent.delete({ where: { id: admitted!.uploadId } }),
+      prisma.tenant.update({
+        where: { id: alpha.id },
+        data: { storageUsedBytes: 0, storageReservedBytes: 0 },
+      }),
+    ]);
+
+    await prisma.tenant.update({
+      where: { id: alpha.id },
+      data: { photoCount: 100 },
+    });
+    await request(app.getHttpServer())
+      .post('/api/photos/upload')
+      .set('Authorization', authorization(101))
+      .set('X-Tenant-Slug', alpha.slug)
+      .send({
+        albumId: alphaAlbum.id,
+        contentType: 'image/png',
+        size: 1,
+      })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'QUOTA_PHOTOS' });
+      });
+    await prisma.tenant.update({
+      where: { id: alpha.id },
+      data: { photoCount: 0 },
+    });
+
+    const usage = app.get(UsageService);
+    await prisma.tenant.update({
+      where: { id: alpha.id },
+      data: { albumCount: 0 },
+    });
+    await expect(
+      usage.reconcileTenant(alpha.id, { apply: false, limit: 100 }),
+    ).resolves.toMatchObject({ applied: false, drift: true });
+    await expect(
+      usage.reconcileTenant(alpha.id, { apply: true, limit: 100 }),
+    ).resolves.toMatchObject({ applied: true, drift: true });
+    await expect(
+      usage.reconcileTenant(alpha.id, { apply: true, limit: 100 }),
+    ).resolves.toMatchObject({
+      applied: false,
+      drift: false,
+      incomplete: false,
+      issues: [],
+    });
+
+    const staleId = 'stale_quota_intent';
+    await prisma.$transaction([
+      prisma.uploadIntent.create({
+        data: {
+          id: staleId,
+          key: `tenants/${alpha.id}/photos/${alphaAlbum.id}/${staleId}/original`,
+          tenantId: alpha.id,
+          albumId: alphaAlbum.id,
+          expectedMimeType: 'image/png',
+          expectedSize: 10,
+          reservedBytes: 10,
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+      }),
+      prisma.tenant.update({
+        where: { id: alpha.id },
+        data: { storageReservedBytes: { increment: 10 } },
+      }),
+    ]);
+    const photos = app.get(PhotosService);
+    const tenantContext = {
+      id: alpha.id,
+      mode: 'multi' as const,
+      slug: alpha.slug,
+      status: 'ACTIVE' as const,
+    };
+    await expect(
+      photos.cleanupExpiredUploads(tenantContext, {
+        dryRun: true,
+        limit: 1,
+      }),
+    ).resolves.toMatchObject({ candidates: [staleId], expired: 0 });
+    await expect(
+      photos.cleanupExpiredUploads(tenantContext, { limit: 1 }),
+    ).resolves.toMatchObject({ expired: 1, failed: 0 });
+    await expect(
+      photos.cleanupExpiredUploads(tenantContext, { limit: 1 }),
+    ).resolves.toMatchObject({ processed: 0 });
+    expect(
+      await prisma.tenant.findUniqueOrThrow({ where: { id: alpha.id } }),
+    ).toMatchObject({ storageReservedBytes: 0n });
+  });
+
   it('hides suspended galleries while giving their owner a clear denial', async () => {
     await prisma.tenant.update({
       where: { id: alpha.id },
@@ -591,8 +768,13 @@ describe('Tenant isolation (e2e)', () => {
       .set('Authorization', authorization(101))
       .set('X-Tenant-Slug', alpha.slug)
       .send({ name: 'Suspended write' })
-      .expect(403)
-      .expect(/Tenant is suspended/);
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          code: 'TENANT_SUSPENDED',
+          message: 'This gallery is suspended and is read-only.',
+        });
+      });
 
     await prisma.tenant.update({
       where: { id: alpha.id },

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { TenantRole } from '../../generated/prisma/client';
 import type { TenancyMode } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
+import { QuotaException } from '../quota/quota.errors';
 import type { TgRequest } from './request-context';
 
 /** Uses the env allowlist in single mode and owner memberships in multi mode. */
@@ -52,7 +53,7 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException('Tenant owner access required');
     }
     if (tenant.status !== 'ACTIVE') {
-      throw new ForbiddenException('Tenant is suspended');
+      throw new QuotaException('TENANT_SUSPENDED');
     }
     return true;
   }

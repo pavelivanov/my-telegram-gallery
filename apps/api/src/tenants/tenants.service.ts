@@ -8,7 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma, TenantRole } from '../../generated/prisma/client';
 import type { TgUser } from '../auth/tg-init-data.guard';
 import type { TenancyMode } from '../config/env';
+import { getPlanPolicy, PLAN_POLICY_VERSION } from '../plans/plan-policy';
 import { PrismaService } from '../prisma/prisma.service';
+import { QuotaException } from '../quota/quota.errors';
+import { QuotaService } from '../quota/quota.service';
 import { DEFAULT_TENANT_SLUG, RESERVED_TENANT_SLUGS } from './tenant.constants';
 
 @Injectable()
@@ -18,6 +21,7 @@ export class TenantsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly quota: QuotaService,
     config: ConfigService,
   ) {
     this.adminIds = config.getOrThrow<readonly string[]>('ADMIN_TG_IDS');
@@ -55,16 +59,39 @@ export class TenantsService {
     if (!name) throw new ConflictException('Tenant name is required');
 
     try {
-      const tenant = await this.prisma.$transaction((transaction) =>
-        transaction.tenant.create({
-          data: {
-            name,
-            slug,
-            memberships: {
-              create: { role: TenantRole.OWNER, tgUserId: BigInt(user.id) },
+      const ownerTgUserId = BigInt(user.id);
+      const tenant = await this.quota.withOwnerLock(
+        ownerTgUserId,
+        async (transaction) => {
+          const owned = await transaction.tenant.findMany({
+            where: {
+              memberships: {
+                some: {
+                  role: TenantRole.OWNER,
+                  tgUserId: ownerTgUserId,
+                },
+              },
             },
-          },
-        }),
+            select: { plan: true },
+          });
+          const maximumTenants = owned.reduce(
+            (maximum, item) =>
+              Math.max(maximum, getPlanPolicy(item.plan).maxTenantsPerOwner),
+            getPlanPolicy('FREE').maxTenantsPerOwner,
+          );
+          if (owned.length >= maximumTenants) {
+            throw new QuotaException('QUOTA_TENANTS');
+          }
+          return transaction.tenant.create({
+            data: {
+              name,
+              slug,
+              memberships: {
+                create: { role: TenantRole.OWNER, tgUserId: ownerTgUserId },
+              },
+            },
+          });
+        },
       );
       return this.serialize(tenant);
     } catch (error) {
@@ -111,15 +138,30 @@ export class TenantsService {
     name: string;
     plan: string;
     slug: string;
+    storageReservedBytes: bigint;
+    storageUsedBytes: bigint;
+    albumCount: number;
+    photoCount: number;
     status: string;
     updatedAt: Date;
   }) {
+    const policy = getPlanPolicy(tenant.plan as 'FREE' | 'PRO');
     return {
       id: tenant.id,
       slug: tenant.slug,
       name: tenant.name,
       status: tenant.status.toLowerCase(),
       plan: tenant.plan.toLowerCase(),
+      policyVersion: PLAN_POLICY_VERSION,
+      usage: {
+        albumCount: tenant.albumCount,
+        albumLimit: policy.maxAlbums,
+        photoCount: tenant.photoCount,
+        photoLimit: policy.maxPhotos,
+        storageUsedBytes: tenant.storageUsedBytes.toString(),
+        storageReservedBytes: tenant.storageReservedBytes.toString(),
+        storageLimitBytes: policy.maxStorageBytes.toString(),
+      },
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
     };

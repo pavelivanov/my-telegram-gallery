@@ -61,13 +61,6 @@ export class PhotosController {
     );
   }
 
-  /** One-shot: generate previews for photos that predate thumbnails. */
-  @Post('backfill-thumbs')
-  @UseGuards(AdminGuard)
-  backfillThumbs(@Req() request: TgRequest) {
-    return this.photos.backfillThumbs(requireTenantContext(request));
-  }
-
   @Delete(':id')
   @UseGuards(AdminGuard)
   remove(@Req() request: TgRequest, @Param('id') id: string) {

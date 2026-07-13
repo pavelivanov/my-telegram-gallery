@@ -15,13 +15,13 @@ import { randomUUID } from 'node:crypto';
 import { Transform, type Readable } from 'node:stream';
 import sharp from 'sharp';
 import {
-  Prisma,
   UploadIntentStatus,
   type Photo,
   type UploadIntent,
 } from '../../generated/prisma/client';
 import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { QuotaService } from '../quota/quota.service';
 import { OBJECT_STORAGE, type ObjectStorage } from '../storage/storage.types';
 import {
   assertTenantReadable,
@@ -47,6 +47,13 @@ interface ValidatedImage {
   width: number;
 }
 
+interface GeneratedVariants {
+  previewKey: string;
+  previewSize: number;
+  thumbKey: string;
+  thumbSize: number;
+}
+
 @Injectable()
 export class PhotosService {
   private readonly logger = new Logger(PhotosService.name);
@@ -58,6 +65,7 @@ export class PhotosService {
     private readonly prisma: PrismaService,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
     private readonly media: MediaService,
+    private readonly quota: QuotaService,
     config: ConfigService,
   ) {
     this.intentTtlSeconds = config.getOrThrow<number>(
@@ -79,37 +87,58 @@ export class PhotosService {
     if (dto.size > this.maxUploadBytes) {
       throw new PayloadTooLargeException('Upload exceeds configured maximum');
     }
-    const album = await this.prisma.album.findFirst({
-      where: { id: dto.albumId, tenantId: context.id },
-      select: { id: true, tenantId: true },
-    });
-    if (!album) throw new NotFoundException('Album not found');
-
+    if (
+      this.transferMode === 'direct' &&
+      (!this.storage.capabilities.presignPut || !this.storage.presignPut)
+    ) {
+      throw new Error('Configured storage does not support direct uploads');
+    }
     const uploadId = randomUUID();
-    const key = `tenants/${album.tenantId}/photos/${album.id}/${uploadId}/original`;
     const expiresAt = new Date(Date.now() + this.intentTtlSeconds * 1000);
-    await this.prisma.uploadIntent.create({
-      data: {
-        id: uploadId,
-        key,
-        albumId: album.id,
-        tenantId: album.tenantId,
-        expectedMimeType: dto.contentType,
-        expectedSize: dto.size,
-        expiresAt,
+    const intent = await this.quota.withTenantLock(
+      context.id,
+      async (transaction, tenant) => {
+        this.quota.assertMutable(tenant);
+        this.quota.assertPhotoCapacity(tenant);
+        this.quota.assertUploadCapacity(tenant, BigInt(dto.size));
+        const album = await transaction.album.findFirst({
+          where: { id: dto.albumId, tenantId: context.id },
+          select: { id: true, tenantId: true },
+        });
+        if (!album) throw new NotFoundException('Album not found');
+        const key = `tenants/${album.tenantId}/photos/${album.id}/${uploadId}/original`;
+        const created = await transaction.uploadIntent.create({
+          data: {
+            id: uploadId,
+            key,
+            albumId: album.id,
+            tenantId: album.tenantId,
+            expectedMimeType: dto.contentType,
+            expectedSize: dto.size,
+            reservedBytes: BigInt(dto.size),
+            expiresAt,
+          },
+        });
+        await transaction.tenant.update({
+          where: { id: tenant.id },
+          data: { storageReservedBytes: { increment: dto.size } },
+        });
+        return created;
       },
-    });
+    );
 
     let uploadUrl: string;
     if (this.transferMode === 'direct') {
-      if (!this.storage.capabilities.presignPut || !this.storage.presignPut) {
-        throw new Error('Configured storage does not support direct uploads');
+      try {
+        uploadUrl = await this.storage.presignPut!(
+          intent.key,
+          { contentLength: dto.size, contentType: dto.contentType },
+          this.intentTtlSeconds,
+        );
+      } catch (error) {
+        await this.releaseReservation(context.id, intent.id, 'FAILED');
+        throw error;
       }
-      uploadUrl = await this.storage.presignPut(
-        key,
-        { contentLength: dto.size, contentType: dto.contentType },
-        this.intentTtlSeconds,
-      );
     } else {
       uploadUrl = `/api/photos/uploads/${uploadId}/content`;
     }
@@ -128,14 +157,7 @@ export class PhotosService {
   ): Promise<never> {
     try {
       await this.deleteIntentObjects(intent.key);
-      await this.prisma.uploadIntent.updateMany({
-        where: {
-          id: intent.id,
-          tenantId: context.id,
-          status: { not: UploadIntentStatus.CONFIRMED },
-        },
-        data: { status: UploadIntentStatus.EXPIRED },
-      });
+      await this.releaseReservation(context.id, intent.id, 'EXPIRED');
     } catch (error) {
       await this.prisma.uploadIntent.updateMany({
         where: {
@@ -188,6 +210,10 @@ export class PhotosService {
     if (contentType !== intent.expectedMimeType) {
       throw new UnsupportedMediaTypeException('Upload content type changed');
     }
+    await this.quota.withTenantLock(context.id, (_transaction, tenant) => {
+      this.quota.assertMutable(tenant);
+      return Promise.resolve();
+    });
     if (contentLengthRaw) {
       const contentLength = Number(contentLengthRaw);
       if (
@@ -343,7 +369,7 @@ export class PhotosService {
   private async generatePreviews(
     key: string,
     original: Buffer,
-  ): Promise<{ thumbKey: string; previewKey: string }> {
+  ): Promise<GeneratedVariants> {
     const { thumbKey, previewKey } = this.variantKeys(key);
     const thumb = await sharp(original)
       .rotate()
@@ -374,7 +400,49 @@ export class PhotosService {
       await this.storage.delete(thumbKey);
       throw error;
     }
-    return { thumbKey, previewKey };
+    return {
+      thumbKey,
+      thumbSize: thumb.length,
+      previewKey,
+      previewSize: preview.length,
+    };
+  }
+
+  private async releaseReservation(
+    tenantId: string,
+    uploadId: string,
+    status: 'EXPIRED' | 'FAILED',
+  ): Promise<boolean> {
+    return this.quota.withTenantLock(tenantId, async (transaction, tenant) => {
+      const current = await transaction.uploadIntent.findFirst({
+        where: { id: uploadId, tenantId },
+      });
+      if (!current || current.status === UploadIntentStatus.CONFIRMED) {
+        return false;
+      }
+      if (current.reservationReleasedAt) {
+        await transaction.uploadIntent.update({
+          where: { id: current.id },
+          data: { status },
+        });
+        return false;
+      }
+      await transaction.tenant.update({
+        where: { id: tenant.id },
+        data: {
+          storageReservedBytes: { decrement: current.reservedBytes },
+        },
+      });
+      await transaction.uploadIntent.update({
+        where: { id: current.id },
+        data: {
+          reservedBytes: 0,
+          reservationReleasedAt: new Date(),
+          status,
+        },
+      });
+      return true;
+    });
   }
 
   private async rejectIntent(
@@ -382,23 +450,24 @@ export class PhotosService {
     intent: UploadIntent,
     error: Error,
   ): Promise<never> {
-    await this.prisma.uploadIntent.updateMany({
-      where: {
-        id: intent.id,
-        tenantId: context.id,
-        status: { not: UploadIntentStatus.CONFIRMED },
-      },
-      data: { status: UploadIntentStatus.FAILED },
-    });
     try {
       await this.deleteIntentObjects(intent.key);
     } catch (cleanupError) {
       this.logger.error('Rejected upload cleanup failed', cleanupError);
+      await this.prisma.uploadIntent.updateMany({
+        where: {
+          id: intent.id,
+          tenantId: context.id,
+          status: { not: UploadIntentStatus.CONFIRMED },
+        },
+        data: { status: UploadIntentStatus.FAILED },
+      });
       throw new InternalServerErrorException(
         'Upload rejected and cleanup must be retried',
         { cause: cleanupError },
       );
     }
+    await this.releaseReservation(context.id, intent.id, 'FAILED');
     throw error;
   }
 
@@ -406,72 +475,80 @@ export class PhotosService {
     context: TenantContext,
     intent: UploadIntent,
     image: ValidatedImage,
-    variants: { thumbKey: string; previewKey: string },
+    variants: GeneratedVariants,
   ): Promise<Photo> {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        return await this.prisma.$transaction(
-          async (tx) => {
-            const current = await tx.uploadIntent.findFirst({
-              where: { id: intent.id, tenantId: context.id },
-              include: { photo: true },
-            });
-            if (!current)
-              throw new NotFoundException('Upload intent not found');
-            if (
-              current.status === UploadIntentStatus.CONFIRMED &&
-              current.photo
-            ) {
-              return current.photo;
-            }
-            if (
-              current.status !== UploadIntentStatus.PENDING &&
-              current.status !== UploadIntentStatus.UPLOADED
-            ) {
-              throw new ConflictException('Upload intent cannot be confirmed');
-            }
-
-            const maximum = await tx.photo.aggregate({
-              where: { albumId: current.albumId, tenantId: context.id },
-              _max: { position: true },
-            });
-            const photo = await tx.photo.create({
-              data: {
-                albumId: current.albumId,
-                tenantId: context.id,
-                key: current.key,
-                thumbKey: variants.thumbKey,
-                previewKey: variants.previewKey,
-                mimeType: image.mimeType,
-                size: image.size,
-                width: image.width,
-                height: image.height,
-                position: (maximum._max.position ?? 0) + 1,
-              },
-            });
-            const confirmed = await tx.uploadIntent.updateMany({
-              where: { id: current.id, tenantId: context.id },
-              data: {
-                photoId: photo.id,
-                status: UploadIntentStatus.CONFIRMED,
-              },
-            });
-            if (confirmed.count !== 1) {
-              throw new ConflictException('Upload intent changed');
-            }
-            return photo;
-          },
-          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-        );
-      } catch (error) {
-        const retryable =
-          typeof error === 'object' &&
-          error !== null &&
-          (error as { code?: unknown }).code === 'P2034';
-        if (!retryable || attempt === 2) throw error;
+    const storedBytes = BigInt(
+      image.size + variants.thumbSize + variants.previewSize,
+    );
+    return this.quota.withTenantLock(context.id, async (tx, tenant) => {
+      const current = await tx.uploadIntent.findFirst({
+        where: { id: intent.id, tenantId: context.id },
+        include: { photo: true },
+      });
+      if (!current) throw new NotFoundException('Upload intent not found');
+      if (current.status === UploadIntentStatus.CONFIRMED && current.photo) {
+        return current.photo;
       }
-    }
-    throw new Error('Unreachable transaction retry state');
+      this.quota.assertMutable(tenant);
+      if (
+        current.status !== UploadIntentStatus.PENDING &&
+        current.status !== UploadIntentStatus.UPLOADED
+      ) {
+        throw new ConflictException('Upload intent cannot be confirmed');
+      }
+      if (current.reservationReleasedAt) {
+        throw new ConflictException('Upload reservation was released');
+      }
+      this.quota.assertPhotoCapacity(tenant);
+      this.quota.assertConfirmationCapacity(
+        tenant,
+        current.reservedBytes,
+        storedBytes,
+      );
+
+      const maximum = await tx.photo.aggregate({
+        where: { albumId: current.albumId, tenantId: context.id },
+        _max: { position: true },
+      });
+      const photo = await tx.photo.create({
+        data: {
+          albumId: current.albumId,
+          tenantId: context.id,
+          key: current.key,
+          thumbKey: variants.thumbKey,
+          previewKey: variants.previewKey,
+          mimeType: image.mimeType,
+          size: image.size,
+          storedBytes,
+          width: image.width,
+          height: image.height,
+          position: (maximum._max.position ?? 0) + 1,
+        },
+      });
+      const confirmed = await tx.uploadIntent.updateMany({
+        where: { id: current.id, tenantId: context.id },
+        data: {
+          photoId: photo.id,
+          status: UploadIntentStatus.CONFIRMED,
+          reservedBytes: 0,
+          reservationReleasedAt: new Date(),
+        },
+      });
+      if (confirmed.count !== 1) {
+        throw new ConflictException('Upload intent changed');
+      }
+      await tx.tenant.update({
+        where: { id: tenant.id },
+        data: {
+          storageReservedBytes: {
+            decrement: current.reservedBytes,
+          },
+          storageUsedBytes: { increment: storedBytes },
+          photoCount: { increment: 1 },
+        },
+      });
+      return photo;
+    });
   }
 
   async confirmUpload(context: TenantContext, uploadId: string) {
@@ -501,7 +578,7 @@ export class PhotosService {
       );
     }
 
-    let variants: { thumbKey: string; previewKey: string };
+    let variants: GeneratedVariants;
     try {
       variants = await this.generatePreviews(intent.key, image.buffer);
     } catch (error) {
@@ -514,42 +591,24 @@ export class PhotosService {
       );
     }
 
-    const photo = await this.createPhotoTransaction(
-      context,
-      intent,
-      image,
-      variants,
-    );
-    return this.media.serializePhoto(photo);
-  }
-
-  /** Admin: generate previews for photos missing any preview variant. */
-  async backfillThumbs(context: TenantContext) {
-    assertTenantReadable(context);
-    const photos = await this.prisma.photo.findMany({
-      where: {
-        tenantId: context.id,
-        OR: [{ thumbKey: null }, { previewKey: null }],
-      },
-    });
-    let done = 0;
-    for (const photo of photos) {
-      try {
-        const original = await this.readObjectBuffer(
-          photo.key,
-          this.maxUploadBytes,
-        );
-        const variants = await this.generatePreviews(photo.key, original);
-        await this.prisma.photo.updateMany({
-          where: { id: photo.id, tenantId: context.id },
-          data: variants,
-        });
-        done++;
-      } catch (error) {
-        this.logger.warn(`Preview generation failed for ${photo.id}`, error);
-      }
+    let photo: Photo;
+    try {
+      photo = await this.createPhotoTransaction(
+        context,
+        intent,
+        image,
+        variants,
+      );
+    } catch (error) {
+      return this.rejectIntent(
+        context,
+        intent,
+        error instanceof Error
+          ? error
+          : new InternalServerErrorException('Upload confirmation failed'),
+      );
     }
-    return { processed: photos.length, generated: done };
+    return this.media.serializePhoto(photo);
   }
 
   /** Any authenticated Telegram user: list the gallery. */
@@ -564,23 +623,41 @@ export class PhotosService {
 
   /** Admin: delete a photo and all variants before deleting its DB record. */
   async remove(context: TenantContext, id: string) {
-    assertTenantReadable(context);
-    const photo = await this.prisma.photo.findFirst({
-      where: { id, tenantId: context.id },
-    });
+    const photo = await this.quota.withTenantLock(
+      context.id,
+      async (transaction, tenant) => {
+        this.quota.assertMutable(tenant);
+        return transaction.photo.findFirst({
+          where: { id, tenantId: context.id },
+        });
+      },
+    );
     if (!photo) throw new NotFoundException();
     await Promise.all([
       this.storage.delete(photo.key),
       ...(photo.thumbKey ? [this.storage.delete(photo.thumbKey)] : []),
       ...(photo.previewKey ? [this.storage.delete(photo.previewKey)] : []),
     ]);
-    const deleted = await this.prisma.photo.deleteMany({
-      where: { id, tenantId: context.id },
+    await this.quota.withTenantLock(context.id, async (transaction, tenant) => {
+      const deleted = await transaction.photo.deleteMany({
+        where: { id, tenantId: context.id },
+      });
+      if (deleted.count !== 1) throw new NotFoundException();
+      await transaction.tenant.update({
+        where: { id: tenant.id },
+        data: {
+          photoCount: { decrement: 1 },
+          storageUsedBytes: { decrement: photo.storedBytes },
+        },
+      });
     });
-    if (deleted.count !== 1) throw new NotFoundException();
   }
 
-  async cleanupExpiredUploads(context: TenantContext) {
+  async cleanupExpiredUploads(
+    context: TenantContext,
+    options: { dryRun?: boolean; limit?: number } = {},
+  ) {
+    const limit = options.limit ?? 100;
     const stale = await this.prisma.uploadIntent.findMany({
       where: {
         tenantId: context.id,
@@ -593,16 +670,23 @@ export class PhotosService {
           ],
         },
       },
+      orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }],
+      take: limit,
     });
+    if (options.dryRun) {
+      return {
+        processed: stale.length,
+        expired: 0,
+        failed: 0,
+        candidates: stale.map((intent) => intent.id),
+      };
+    }
     let expired = 0;
     let failed = 0;
     for (const intent of stale) {
       try {
         await this.deleteIntentObjects(intent.key);
-        await this.prisma.uploadIntent.updateMany({
-          where: { id: intent.id, tenantId: context.id },
-          data: { status: UploadIntentStatus.EXPIRED },
-        });
+        await this.releaseReservation(context.id, intent.id, 'EXPIRED');
         expired++;
       } catch (error) {
         await this.prisma.uploadIntent.updateMany({
@@ -613,6 +697,6 @@ export class PhotosService {
         failed++;
       }
     }
-    return { processed: stale.length, expired, failed };
+    return { processed: stale.length, expired, failed, candidates: [] };
   }
 }

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { QuotaService } from '../quota/quota.service';
 import {
   assertTenantReadable,
   type TenantContext,
@@ -15,13 +16,25 @@ export class AlbumsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly media: MediaService,
+    private readonly quota: QuotaService,
   ) {}
 
   async create(context: TenantContext, name: string) {
-    assertTenantReadable(context);
-    const album = await this.prisma.album.create({
-      data: { name, tenantId: context.id },
-    });
+    const album = await this.quota.withTenantLock(
+      context.id,
+      async (transaction, tenant) => {
+        this.quota.assertMutable(tenant);
+        this.quota.assertAlbumCapacity(tenant);
+        const created = await transaction.album.create({
+          data: { name, tenantId: context.id },
+        });
+        await transaction.tenant.update({
+          where: { id: tenant.id },
+          data: { albumCount: { increment: 1 } },
+        });
+        return created;
+      },
+    );
     return {
       id: album.id,
       name: album.name,
@@ -88,8 +101,8 @@ export class AlbumsService {
 
   /** Admin: persist a manual photo order — array index becomes position. */
   async reorder(context: TenantContext, id: string, photoIds: string[]) {
-    assertTenantReadable(context);
-    await this.prisma.$transaction(async (transaction) => {
+    await this.quota.withTenantLock(context.id, async (transaction, tenant) => {
+      this.quota.assertMutable(tenant);
       const album = await transaction.album.findFirst({
         where: { id, tenantId: context.id },
         select: { id: true },

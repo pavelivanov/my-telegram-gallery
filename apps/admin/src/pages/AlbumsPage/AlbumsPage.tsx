@@ -12,8 +12,6 @@ export const AlbumsPage: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [backfilling, setBackfilling] = useState(false);
-  const [backfillResult, setBackfillResult] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api<Album[]>('/albums')
@@ -40,30 +38,6 @@ export const AlbumsPage: FC = () => {
       setError((e as Error).message);
     } finally {
       setCreating(false);
-    }
-  };
-
-  // Regenerate webp previews for photos uploaded before previews existed
-  // (album covers fall back to the low-res thumb without them).
-  const backfillPreviews = async () => {
-    if (backfilling) return;
-    setBackfilling(true);
-    setBackfillResult(null);
-    try {
-      const { processed, generated } = await api<{
-        processed: number;
-        generated: number;
-      }>('/photos/backfill-thumbs', { method: 'POST' });
-      setBackfillResult(
-        processed === 0
-          ? 'All photos already have previews'
-          : `Regenerated previews for ${generated} of ${processed} photos`,
-      );
-      load(); // covers may have changed
-    } catch (e) {
-      setBackfillResult((e as Error).message);
-    } finally {
-      setBackfilling(false);
     }
   };
 
@@ -166,29 +140,6 @@ export const AlbumsPage: FC = () => {
           ))}
         </ul>
       )}
-
-      <div className="mx-5 mb-12 flex flex-col items-start gap-2">
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-dim transition-opacity active:opacity-60 disabled:opacity-50"
-          disabled={backfilling}
-          onClick={() => void backfillPreviews()}
-        >
-          {backfilling ? (
-            <>
-              <Spinner className="text-[15px] text-current" /> Regenerating
-              previews…
-            </>
-          ) : (
-            'Regenerate previews'
-          )}
-        </button>
-        {backfillResult && (
-          <p className="text-[13px] text-ink-dim [overflow-wrap:anywhere]">
-            {backfillResult}
-          </p>
-        )}
-      </div>
     </Page>
   );
 };

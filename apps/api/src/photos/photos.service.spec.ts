@@ -8,12 +8,15 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'node:stream';
 import {
+  TenantPlan,
+  TenantStatus,
   UploadIntentStatus,
   type Photo,
   type UploadIntent,
 } from '../../generated/prisma/client';
 import type { MediaService } from '../media/media.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { QuotaService } from '../quota/quota.service';
 import { InMemoryStorage } from '../storage/testing/in-memory.storage';
 import type { TenantContext } from '../tenants/tenant-context';
 import { PhotosService } from './photos.service';
@@ -32,6 +35,8 @@ const baseIntent: UploadIntent = {
   tenantId: tenant.id,
   expectedMimeType: 'image/png',
   expectedSize: 5,
+  reservedBytes: 5n,
+  reservationReleasedAt: null,
   status: UploadIntentStatus.PENDING,
   expiresAt: new Date(Date.now() + 60_000),
   photoId: null,
@@ -47,6 +52,7 @@ const photo: Photo = {
   previewKey: `${baseIntent.key}.preview.webp`,
   mimeType: 'image/png',
   size: 5,
+  storedBytes: 5n,
   width: 1,
   height: 1,
   position: 1,
@@ -80,6 +86,11 @@ function setup(options: { direct?: boolean; storage?: InMemoryStorage } = {}) {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+    tenant: {
+      update: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -90,10 +101,37 @@ function setup(options: { direct?: boolean; storage?: InMemoryStorage } = {}) {
       thumbUrl: '/api/media/thumb-signed',
     }),
   };
+  const tenantRow = {
+    id: tenant.id,
+    slug: tenant.slug,
+    name: 'Tenant one',
+    status: TenantStatus.ACTIVE,
+    plan: TenantPlan.FREE,
+    storageUsedBytes: 0n,
+    storageReservedBytes: 0n,
+    albumCount: 1,
+    photoCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const quota = {
+    withTenantLock: jest.fn(
+      (
+        _tenantId: string,
+        work: (transaction: unknown, row: unknown) => unknown,
+      ) => work(prisma, tenantRow),
+    ),
+    assertMutable: jest.fn(),
+    assertAlbumCapacity: jest.fn(),
+    assertPhotoCapacity: jest.fn(),
+    assertUploadCapacity: jest.fn(),
+    assertConfirmationCapacity: jest.fn(),
+  };
   const service = new PhotosService(
     prisma as unknown as PrismaService,
     storage,
     media as unknown as MediaService,
+    quota as unknown as QuotaService,
     new ConfigService({
       STORAGE_TRANSFER_MODE: options.direct ? 'direct' : 'proxy',
       UPLOAD_INTENT_TTL_SECONDS: 600,
@@ -104,6 +142,7 @@ function setup(options: { direct?: boolean; storage?: InMemoryStorage } = {}) {
     getUploadIntentCreateInput: () => uploadIntentCreateInput,
     media,
     prisma,
+    quota,
     service,
     storage,
   };
@@ -243,11 +282,13 @@ describe('PhotosService upload intents', () => {
       processed: 1,
       expired: 1,
       failed: 0,
+      candidates: [],
     });
     await expect(service.cleanupExpiredUploads(tenant)).resolves.toEqual({
       processed: 0,
       expired: 0,
       failed: 0,
+      candidates: [],
     });
   });
 
@@ -263,16 +304,33 @@ describe('PhotosService upload intents', () => {
       processed: 1,
       expired: 0,
       failed: 1,
+      candidates: [],
     });
     await expect(service.cleanupExpiredUploads(tenant)).resolves.toEqual({
       processed: 1,
       expired: 1,
       failed: 0,
+      candidates: [],
     });
-    expect(prisma.uploadIntent.updateMany).toHaveBeenLastCalledWith({
-      where: { id: baseIntent.id, tenantId: tenant.id },
-      data: { status: UploadIntentStatus.EXPIRED },
-    });
+    expect(prisma.uploadIntent.update).toHaveBeenCalled();
     logger.mockRestore();
+  });
+
+  it('does not decrement usage until storage deletion succeeds', async () => {
+    const { prisma, service, storage } = setup();
+    prisma.photo.findFirst.mockResolvedValue(photo);
+    jest
+      .spyOn(storage, 'delete')
+      .mockRejectedValueOnce(new Error('temporary storage failure'));
+
+    await expect(service.remove(tenant, photo.id)).rejects.toThrow(
+      'temporary storage failure',
+    );
+    expect(prisma.photo.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.tenant.update).not.toHaveBeenCalled();
+
+    await expect(service.remove(tenant, photo.id)).resolves.toBeUndefined();
+    expect(prisma.photo.deleteMany).toHaveBeenCalledTimes(1);
+    expect(prisma.tenant.update).toHaveBeenCalledTimes(1);
   });
 });

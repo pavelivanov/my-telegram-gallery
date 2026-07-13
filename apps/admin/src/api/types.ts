@@ -31,6 +31,16 @@ export interface AlbumDetail {
 export interface Tenant {
   name: string;
   plan: string;
+  policyVersion: string;
   slug: string;
   status: 'active' | 'suspended';
+  usage: {
+    albumCount: number;
+    albumLimit: number;
+    photoCount: number;
+    photoLimit: number;
+    storageLimitBytes: string;
+    storageReservedBytes: string;
+    storageUsedBytes: string;
+  };
 }

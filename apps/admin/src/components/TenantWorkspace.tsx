@@ -44,6 +44,20 @@ function suggestedSlug(name: string): string {
     .slice(0, 30);
 }
 
+function formatBytes(value: bigint): string {
+  const mebibytes = Number(value / (1024n * 1024n));
+  if (mebibytes < 1024) return `${mebibytes} MB`;
+  const gibibytes = Number(value / (1024n * 1024n * 1024n));
+  return `${gibibytes} GB`;
+}
+
+function committedStorage(tenant: Tenant): bigint {
+  return (
+    BigInt(tenant.usage.storageUsedBytes) +
+    BigInt(tenant.usage.storageReservedBytes)
+  );
+}
+
 function TenantOnboarding({
   onCancel,
   onCreated,
@@ -176,6 +190,7 @@ function TenantNavigation({
   tenants: Tenant[];
 }) {
   const homeLink = buildGalleryHomeLink(config, selected.slug);
+  const storageCommitted = committedStorage(selected);
 
   return (
     <nav className="animate-fade border-b border-line px-5 pt-5 pb-4">
@@ -201,6 +216,11 @@ function TenantNavigation({
           )}
           <span className="mt-0.5 block truncate text-[11px] uppercase tracking-[0.16em] text-ink-dim">
             {selected.slug}
+          </span>
+          <span className="mt-1 block truncate text-[11px] tabular-nums text-ink-dim">
+            {selected.usage.photoCount}/{selected.usage.photoLimit} photos ·{' '}
+            {formatBytes(storageCommitted)}/
+            {formatBytes(BigInt(selected.usage.storageLimitBytes))}
           </span>
         </label>
         <div className="flex shrink-0 items-center gap-4 text-[11px] font-medium uppercase tracking-[0.16em]">
@@ -309,7 +329,7 @@ export function TenantWorkspace({ children }: PropsWithChildren) {
         />
         <Placeholder
           header="Gallery suspended"
-          description="This gallery is read-only. Contact the service operator to restore access."
+          description={`This gallery is read-only. Usage: ${selected.usage.photoCount}/${selected.usage.photoLimit} photos and ${formatBytes(committedStorage(selected))} of ${formatBytes(BigInt(selected.usage.storageLimitBytes))}. Contact the service operator to restore access.`}
         />
       </>
     );

@@ -4,8 +4,10 @@ import { AppModule } from './app.module';
 import type { TenancyMode } from './config/env';
 import { PhotosService } from './photos/photos.service';
 import { PrismaService } from './prisma/prisma.service';
+import { parseBoundedJobOptions } from './usage/job-options';
 
 async function cleanupUploads(): Promise<void> {
+  const options = parseBoundedJobOptions(process.argv.slice(2));
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['error', 'warn', 'log'],
   });
@@ -14,14 +16,30 @@ async function cleanupUploads(): Promise<void> {
     const photos = app.get(PhotosService);
     const mode = app.get(ConfigService).getOrThrow<TenancyMode>('TENANCY_MODE');
     const tenants = await prisma.tenant.findMany({
+      where: options.tenantSlug ? { slug: options.tenantSlug } : undefined,
+      orderBy: { id: 'asc' },
+      take: options.tenantSlug ? 1 : options.limit,
       select: { id: true, slug: true, status: true },
     });
-    const totals = { processed: 0, expired: 0, failed: 0 };
+    if (options.tenantSlug && tenants.length === 0) {
+      throw new Error(`Tenant not found: ${options.tenantSlug}`);
+    }
+    const totals = {
+      mode: options.apply ? 'apply' : 'dry-run',
+      processed: 0,
+      expired: 0,
+      failed: 0,
+      candidates: [] as string[],
+    };
     for (const tenant of tenants) {
-      const result = await photos.cleanupExpiredUploads({ ...tenant, mode });
+      const result = await photos.cleanupExpiredUploads(
+        { ...tenant, mode },
+        { dryRun: options.dryRun, limit: options.limit },
+      );
       totals.processed += result.processed;
       totals.expired += result.expired;
       totals.failed += result.failed;
+      totals.candidates.push(...result.candidates);
     }
     console.info(JSON.stringify(totals));
   } finally {
@@ -30,6 +48,8 @@ async function cleanupUploads(): Promise<void> {
 }
 
 void cleanupUploads().catch((error: unknown) => {
-  console.error(error);
+  console.error(
+    error instanceof Error ? error.message : 'Upload cleanup failed',
+  );
   process.exitCode = 1;
 });

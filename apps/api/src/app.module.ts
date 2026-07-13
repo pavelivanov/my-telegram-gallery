@@ -13,6 +13,8 @@ import { StorageModule } from './storage/storage.module';
 import { PublicConfigModule } from './public-config/public-config.module';
 import { HealthModule } from './health/health.module';
 import { TenantsModule } from './tenants/tenants.module';
+import { QuotaModule } from './quota/quota.module';
+import { UsageModule } from './usage/usage.module';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { TenantsModule } from './tenants/tenants.module';
       },
     }),
     PrismaModule,
+    QuotaModule,
+    UsageModule,
     StorageModule,
     TenantsModule,
     AlbumsModule,

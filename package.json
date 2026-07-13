@@ -17,7 +17,9 @@
     "build:api": "pnpm --filter api build",
     "prisma:generate": "pnpm --filter api exec prisma generate",
     "prisma:migrate": "pnpm --filter api exec prisma migrate dev",
-    "tenant:bootstrap": "pnpm --filter api build && pnpm --filter api tenant:bootstrap"
+    "tenant:bootstrap": "pnpm --filter api build && pnpm --filter api tenant:bootstrap",
+    "uploads:cleanup": "pnpm --filter api build && pnpm --filter api uploads:cleanup",
+    "usage:reconcile": "pnpm --filter api build && pnpm --filter api usage:reconcile"
   },
   "engines": {
     "node": ">=22"
