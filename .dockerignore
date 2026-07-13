@@ -16,5 +16,8 @@
 *.jpeg
 *.webp
 plans
+docs
+scripts
+**/README.md
 compose.test.yml
 docker-compose*.yml

@@ -26,8 +26,9 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 
 COPY . .
 
-RUN pnpm build \
-  && pnpm --filter api deploy --prod /opt/api
+RUN pnpm prisma:generate \
+  && pnpm build \
+  && pnpm --config.inject-workspace-packages=true --filter api deploy --prod /opt/api
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 

@@ -31,6 +31,9 @@ jobs:
       E2E_DB_HOST: 127.0.0.1
       E2E_DB_PORT: 5432
       TELEGRAM_BOT_TOKEN: 123456:test-only-token
+      TELEGRAM_BOT_USERNAME: test_gallery_bot
+      TELEGRAM_ADMIN_APP_SHORT_NAME: admin_app
+      TELEGRAM_GALLERY_APP_SHORT_NAME: gallery_app
       ADMIN_TG_IDS: 1,2
       TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: 3600
       R2_ACCOUNT_ID: test-account
@@ -50,3 +53,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build
+
+  container:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag my-telegram-gallery:ci .
+      - name: Verify non-root runtime
+        run: test "$(docker inspect --format '{{.Config.User}}' my-telegram-gallery:ci)" = node
+      - name: Smoke the self-host stack
+        env:
+          SMOKE_BUILD: "false"
+          SMOKE_IMAGE: my-telegram-gallery:ci
+        run: bash scripts/smoke-self-host.sh

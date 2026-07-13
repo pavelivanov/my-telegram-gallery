@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_FILE="$ROOT_DIR/.env.selfhost.example"
-TARGET_FILE="$ROOT_DIR/.env"
+TARGET_FILE="${SELF_HOST_ENV_FILE:-$ROOT_DIR/.env}"
 
 if [[ -e "$TARGET_FILE" ]]; then
   echo ".env already exists; leaving it unchanged."

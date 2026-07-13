@@ -19,6 +19,7 @@
 - **Depends on**: `plans/002-add-storage-drivers-and-safe-media-flows.md`
 - **Category**: architecture, DX, docs
 - **Planned at**: commit `9282d53`, 2026-07-13; dirty working tree
+- **Execution status**: DONE (2026-07-13)
 
 ## Why this matters
 
@@ -270,16 +271,16 @@ first PR shows green source and image jobs.
 
 ## Done criteria
 
-- [ ] `pnpm check && pnpm build` exits 0.
-- [ ] `docker build` and `docker compose config --quiet` exit 0.
-- [ ] Smoke script proves one app container serves both SPAs and API.
-- [ ] Production assets contain no localhost or required build-time service URL.
-- [ ] Proxy default requires no S3 bucket or bucket CORS.
-- [ ] Runtime container is non-root and includes migration capability.
-- [ ] Liveness and readiness are distinct and tested.
-- [ ] Quickstart has one recommended topology and complete BotFather/TLS steps.
-- [ ] No Railway deploy was performed.
-- [ ] Only in-scope files plus `plans/README.md` changed.
+- [x] `pnpm check && pnpm build` exits 0.
+- [x] `docker build` and `docker compose config --quiet` exit 0.
+- [x] Smoke script proves one app container serves both SPAs and API.
+- [x] Production assets contain no localhost or required build-time service URL.
+- [x] Proxy default requires no S3 bucket or bucket CORS.
+- [x] Runtime container is non-root and includes migration capability.
+- [x] Liveness and readiness are distinct and tested.
+- [x] Quickstart has one recommended topology and complete BotFather/TLS steps.
+- [x] No Railway deploy was performed.
+- [x] Only in-scope files plus `plans/README.md` changed.
 
 ## STOP conditions
 
