@@ -62,6 +62,33 @@ while a tenant is suspended. This keeps hosted tenants from injecting markup,
 remote assets, fonts, or styles into another viewer's Mini App. Existing and
 migrated tenants default to Nocturne, which preserves the original appearance.
 
+## Optional public browser links
+
+Gallery data stays Telegram-only by default. An owner can open **Web** in the
+administrator Mini App and explicitly create a public browser link. The link
+contains a random 192-bit identifier instead of the tenant slug; knowing a slug
+never grants browser access. Collaborator administrators cannot view, enable,
+or revoke this setting.
+
+Anyone with an active link can view the gallery and albums without a Telegram
+account and can submit a bounded abuse report. The application stores a keyed
+reporter fingerprint for rate/duplicate handling, not the raw source IP. Reverse
+proxies may have separate access-log retention, which operators must review.
+Public reads still require an active tenant and resolve every album/photo under
+that tenant ID.
+
+Disabling the link clears its identifier and makes the old URL return the same
+generic not-found response as an invalid or suspended gallery. Enabling later
+creates a different identifier. The write runs under the tenant lock and
+rechecks owner membership, so revocation or suspension wins over a stale admin
+screen. Public sharing is supported in both tenancy modes.
+
+Public JSON is served `no-store` and the browser view requests `noindex`, but
+those are cooperative controls, not access control. A media URL already issued
+to a viewer can remain valid or cached through `MEDIA_URL_TTL_SECONDS` (one hour
+by default). Review that TTL and any CDN cache policy against the required
+revocation window.
+
 ## Bootstrap a tenant owner
 
 The tenant migration intentionally creates no membership from environment
@@ -119,7 +146,10 @@ Rehearse these steps on a disposable restore before production.
 8. Add one collaborator to only the first tenant. Verify content mutations work
    there, its Style selection reaches only that gallery, billing/team access
    fails, and revocation immediately blocks writes.
-9. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
+9. Enable a public browser link for only the first tenant. Verify its albums and
+   report path work without Telegram auth, cross-tenant album IDs remain hidden,
+   the collaborator cannot change the link, and disable invalidates it.
+10. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
    enablement in production as separate observable steps.
 
 The repository E2E gate rehearses the migrations against empty and populated

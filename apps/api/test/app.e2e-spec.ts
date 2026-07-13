@@ -45,6 +45,11 @@ interface AlbumDetailResponseBody {
   photos: Array<Record<string, unknown>>;
 }
 
+interface PublicShareResponseBody {
+  enabled: boolean;
+  shareId: string | null;
+}
+
 describe('Application (e2e)', () => {
   let app: INestApplication<App>;
   let authorization: string;
@@ -135,6 +140,42 @@ describe('Application (e2e)', () => {
       .send({ theme: 'NOCTURNE' })
       .expect(200)
       .expect({ theme: 'nocturne' });
+  });
+
+  it('keeps single-mode browser access private until an admin opts in', async () => {
+    await request(app.getHttpServer())
+      .get('/api/tenants/default/public-share')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect({ enabled: false, shareId: null });
+    const enabled = await request(app.getHttpServer())
+      .post('/api/tenants/default/public-share')
+      .set('Authorization', authorization)
+      .expect(201);
+    const share = enabled.body as PublicShareResponseBody;
+    expect(share.enabled).toBe(true);
+    expect(share.shareId).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    await request(app.getHttpServer())
+      .get(`/api/public/galleries/${share.shareId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          gallery: {
+            name: 'Default gallery',
+            telegramSlug: 'default',
+            theme: 'nocturne',
+          },
+          albums: [],
+        });
+      });
+    await request(app.getHttpServer())
+      .delete('/api/tenants/default/public-share')
+      .set('Authorization', authorization)
+      .expect(200)
+      .expect({ enabled: false, shareId: null });
+    await request(app.getHttpServer())
+      .get(`/api/public/galleries/${share.shareId}`)
+      .expect(404);
   });
 
   it('rejects non-whitelisted DTO fields through the production pipe', () => {
@@ -332,6 +373,7 @@ describe('Tenant isolation (e2e)', () => {
   let betaAlbum: AlbumResponseBody;
   let alphaPhoto: PhotoResponseBody;
   let betaPhoto: PhotoResponseBody;
+  let alphaPublicShareId: string;
 
   function authorization(userId: number, startParam?: string): string {
     return `tma ${createTelegramInitData({
@@ -623,6 +665,86 @@ describe('Tenant isolation (e2e)', () => {
           expect.objectContaining({ id: alpha.id, theme: 'paper' }),
         ]);
       });
+  });
+
+  it('publishes only an owner-enabled opaque browser link with safe reports', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/tenants/${alpha.slug}/public-share`)
+      .set('Authorization', authorization(909))
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/tenants/${alpha.slug}/public-share`)
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect({ enabled: false, shareId: null });
+
+    const enabled = await request(app.getHttpServer())
+      .post(`/api/tenants/${alpha.slug}/public-share`)
+      .set('Authorization', authorization(101))
+      .expect(201);
+    const firstShare = enabled.body as PublicShareResponseBody;
+    expect(firstShare.shareId).toMatch(/^[A-Za-z0-9_-]{32}$/);
+
+    await request(app.getHttpServer())
+      .get(`/api/public/galleries/${firstShare.shareId}`)
+      .expect(200)
+      .expect('Cache-Control', 'private, no-store')
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          gallery: {
+            name: alpha.name,
+            telegramSlug: alpha.slug,
+            theme: 'paper',
+          },
+          albums: [expect.objectContaining({ id: alphaAlbum.id })],
+        });
+      });
+    await request(app.getHttpServer())
+      .get(`/api/public/galleries/${firstShare.shareId}/albums/${betaAlbum.id}`)
+      .expect(404);
+
+    const reportResponse = await request(app.getHttpServer())
+      .post(`/api/public/galleries/${firstShare.shareId}/reports`)
+      .send({ albumId: alphaAlbum.id, reason: 'OTHER' })
+      .expect(201);
+    const publicReportId = (reportResponse.body as { id: string }).id;
+    await request(app.getHttpServer())
+      .post(`/api/public/galleries/${firstShare.shareId}/reports`)
+      .send({ albumId: alphaAlbum.id, reason: 'OTHER' })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ code: 'REPORT_ALREADY_OPEN' });
+      });
+    const publicReport = await prisma.report.findUniqueOrThrow({
+      where: { id: publicReportId },
+    });
+    expect(publicReport.reporterTgUserId).toBeNull();
+    expect(publicReport.reporterFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(publicReport.reporterFingerprint).not.toContain('127.0.0.1');
+    expect(await app.get(OpsService).listOpenReports(100)).toContainEqual(
+      expect.objectContaining({
+        id: publicReportId,
+        reporterTgUserId: null,
+        source: 'public_web',
+      }),
+    );
+    await prisma.report.delete({ where: { id: publicReportId } });
+
+    await request(app.getHttpServer())
+      .delete(`/api/tenants/${alpha.slug}/public-share`)
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect({ enabled: false, shareId: null });
+    await request(app.getHttpServer())
+      .get(`/api/public/galleries/${firstShare.shareId}`)
+      .expect(404);
+
+    const reenabled = await request(app.getHttpServer())
+      .post(`/api/tenants/${alpha.slug}/public-share`)
+      .set('Authorization', authorization(101))
+      .expect(201);
+    alphaPublicShareId = (reenabled.body as PublicShareResponseBody).shareId!;
+    expect(alphaPublicShareId).not.toBe(firstShare.shareId);
   });
 
   it('isolates object keys, upload flows, signed media, deletes, and constraints', async () => {
@@ -1068,6 +1190,9 @@ describe('Tenant isolation (e2e)', () => {
       .get('/api/albums')
       .set('Authorization', authorization(303))
       .set('X-Tenant-Slug', alpha.slug)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/public/galleries/${alphaPublicShareId}`)
       .expect(404);
     await request(app.getHttpServer())
       .post('/api/albums')

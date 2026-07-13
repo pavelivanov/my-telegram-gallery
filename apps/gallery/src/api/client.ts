@@ -64,3 +64,19 @@ export async function api<T>(
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
+
+export async function publicApi<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(apiUrl(`/api/public${path}`), {
+    ...init,
+    headers: {
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
+  });
+  if (!res.ok) throw await toApiError(res);
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}

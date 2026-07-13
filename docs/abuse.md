@@ -11,6 +11,13 @@ album/photo target. One reporter cannot create duplicate open reports for the
 same target, and the report route has its own rate profile. User text is stored
 for operator review and is never rendered as HTML.
 
+Telegram reports retain the validated numeric Telegram user ID. Reports from an
+owner-enabled public browser gallery retain only an HMAC-SHA-256 reporter
+fingerprint derived from the source IP with a server secret; the application
+does not store the raw IP. Operator output identifies the source as `telegram`
+or `public_web` and does not reveal the fingerprint. Edge/proxy access logs are
+a separate retention surface and must follow the reviewed privacy policy.
+
 Launch response targets:
 
 - credible imminent-harm or clearly illegal-content report: acknowledge and
@@ -31,8 +38,9 @@ credentials into general chat.
 3. Inspect safe tenant status/usage metadata. Access content only when required
    for the report and permitted by policy.
 4. If continued access creates material risk, suspend the tenant immediately
-   with a concise reason. Suspension hides the public gallery and blocks owner
-   mutations while preserving rows, objects, usage, and audit evidence.
+   with a concise reason. Suspension hides both Telegram and public-browser
+   reads and blocks owner mutations while preserving rows, objects, usage, and
+   audit evidence.
 5. Classify the report, note evidence source and legal/privacy constraints, and
    assign an operator.
 

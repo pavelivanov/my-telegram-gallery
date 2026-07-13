@@ -24,6 +24,7 @@ import { OpsModule } from './ops/ops.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { PublicGalleriesModule } from './public-galleries/public-galleries.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     BillingModule,
     WebhooksModule,
     ReportsModule,
+    PublicGalleriesModule,
     OpsModule,
     StorageModule,
     TenantsModule,

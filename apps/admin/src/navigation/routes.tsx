@@ -5,6 +5,7 @@ import { AlbumsPage } from '@/pages/AlbumsPage/AlbumsPage';
 import { BillingPage } from '@/pages/BillingPage/BillingPage';
 import { TeamPage } from '@/pages/TeamPage/TeamPage';
 import { ThemePage } from '@/pages/ThemePage/ThemePage';
+import { PublicSharePage } from '@/pages/PublicSharePage/PublicSharePage';
 
 interface Route {
   path: string;
@@ -18,4 +19,5 @@ export const routes: Route[] = [
   { path: '/billing', Component: BillingPage, title: 'Plan' },
   { path: '/team', Component: TeamPage, title: 'Team' },
   { path: '/theme', Component: ThemePage, title: 'Gallery style' },
+  { path: '/public-share', Component: PublicSharePage, title: 'Public link' },
 ];

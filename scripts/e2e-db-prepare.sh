@@ -40,6 +40,7 @@ guardrails_migration="$ROOT_DIR/apps/api/prisma/migrations/8_saas_guardrails/mig
 billing_migration="$ROOT_DIR/apps/api/prisma/migrations/9_telegram_stars_billing/migration.sql"
 collaborator_migration="$ROOT_DIR/apps/api/prisma/migrations/a_collaborator_admins/migration.sql"
 gallery_theme_migration="$ROOT_DIR/apps/api/prisma/migrations/b_gallery_themes/migration.sql"
+public_web_migration="$ROOT_DIR/apps/api/prisma/migrations/c_public_web_galleries/migration.sql"
 fixture_dir="$ROOT_DIR/apps/api/test/fixtures"
 
 rehearse_tenant_migration() {
@@ -80,6 +81,10 @@ execute_sql "$fixture_dir/collaborator-migration-populated-verify.sql"
 echo "Rehearsing the gallery theme migration on the populated tenant fixture..."
 execute_sql "$gallery_theme_migration"
 execute_sql "$fixture_dir/gallery-theme-migration-populated-verify.sql"
+
+echo "Rehearsing the public web migration on the populated tenant fixture..."
+execute_sql "$public_web_migration"
+execute_sql "$fixture_dir/public-web-migration-populated-verify.sql"
 
 echo "Resetting Prisma schema via recorded migrations..."
 # E2E wants a clean DB every run. `migrate reset` drops the database, re-applies

@@ -93,6 +93,12 @@ identifiers.
   resolve presentation without exposing arbitrary CSS or assets. Migration,
   isolation, component, and local browser checks are repository gates; final
   Telegram client contrast review remains an operator acceptance item.
+- Public browser galleries are now private by default and require an owner to
+  create a random opaque link. Revocation clears the identifier, suspension
+  hides content, collaborators cannot publish, cross-tenant IDs remain hidden,
+  and browser reports retain only a keyed fingerprint rather than a raw IP.
+  Migration/isolation/component checks are automated; policy review, proxy-log
+  retention review, and staging abuse-response acceptance remain external.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.

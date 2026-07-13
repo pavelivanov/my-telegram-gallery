@@ -26,7 +26,8 @@ export class OpsService {
     return reports.map((report) => ({
       id: report.id,
       tenantId: report.tenantId,
-      reporterTgUserId: report.reporterTgUserId.toString(),
+      reporterTgUserId: report.reporterTgUserId?.toString() ?? null,
+      source: report.reporterTgUserId === null ? 'public_web' : 'telegram',
       albumId: report.albumId,
       photoId: report.photoId,
       reason: report.reason,

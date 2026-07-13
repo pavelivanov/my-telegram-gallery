@@ -64,6 +64,13 @@ Nocturne, Paper, or Moss for the gallery. The selection is stored in PostgreSQL
 and therefore follows the normal database backup and restore procedure; it does
 not add files to the media volume.
 
+The default gallery remains unavailable to ordinary browsers. To share outside
+Telegram, open **Web**, review the warning, and create an opaque public link.
+Disabling it revokes that address; creating another produces a new one. Public
+links expose gallery media to anyone who receives the URL, so review content,
+proxy-log retention, the media URL TTL/cache window, and the
+[abuse runbook](abuse.md) first.
+
 Then validate and start the stack:
 
 ```bash

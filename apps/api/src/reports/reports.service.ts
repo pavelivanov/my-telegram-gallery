@@ -18,9 +18,30 @@ export class ReportsService {
 
   async create(context: TenantContext, reporter: TgUser, dto: CreateReportDto) {
     assertTenantReadable(context);
+    return this.createForIdentity(
+      context.id,
+      { reporterTgUserId: BigInt(reporter.id) },
+      dto,
+    );
+  }
+
+  createAnonymous(
+    context: TenantContext,
+    reporterFingerprint: string,
+    dto: CreateReportDto,
+  ) {
+    assertTenantReadable(context);
+    return this.createForIdentity(context.id, { reporterFingerprint }, dto);
+  }
+
+  private async createForIdentity(
+    tenantId: string,
+    identity: { reporterTgUserId: bigint } | { reporterFingerprint: string },
+    dto: CreateReportDto,
+  ) {
     if (dto.albumId) {
       const album = await this.prisma.album.findFirst({
-        where: { id: dto.albumId, tenantId: context.id },
+        where: { id: dto.albumId, tenantId },
         select: { id: true },
       });
       if (!album) throw new NotFoundException('Report target not found');
@@ -29,7 +50,7 @@ export class ReportsService {
       const photo = await this.prisma.photo.findFirst({
         where: {
           id: dto.photoId,
-          tenantId: context.id,
+          tenantId,
           ...(dto.albumId ? { albumId: dto.albumId } : {}),
         },
         select: { id: true },
@@ -40,8 +61,8 @@ export class ReportsService {
     try {
       const report = await this.prisma.report.create({
         data: {
-          tenantId: context.id,
-          reporterTgUserId: BigInt(reporter.id),
+          tenantId,
+          ...identity,
           albumId: dto.albumId,
           photoId: dto.photoId,
           reason: dto.reason,

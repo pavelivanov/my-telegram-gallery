@@ -58,6 +58,23 @@ export class TenantsController {
     return this.tenants.updateTheme(request.tgAuth!.user, slug, dto.theme);
   }
 
+  @Get(':slug/public-share')
+  publicShare(@Req() request: TgRequest, @Param('slug') slug: string) {
+    return this.tenants.getPublicShare(request.tgAuth!.user, slug);
+  }
+
+  @Post(':slug/public-share')
+  @UseRateLimit('admin')
+  enablePublicShare(@Req() request: TgRequest, @Param('slug') slug: string) {
+    return this.tenants.enablePublicShare(request.tgAuth!.user, slug);
+  }
+
+  @Delete(':slug/public-share')
+  @UseRateLimit('admin')
+  disablePublicShare(@Req() request: TgRequest, @Param('slug') slug: string) {
+    return this.tenants.disablePublicShare(request.tgAuth!.user, slug);
+  }
+
   @Get(':slug/members')
   listMembers(@Req() request: TgRequest, @Param('slug') slug: string) {
     return this.tenants.listMembers(request.tgAuth!.user, slug);

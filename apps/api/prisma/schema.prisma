@@ -36,6 +36,7 @@ model Tenant {
   status               TenantStatus       @default(ACTIVE)
   plan                 TenantPlan         @default(FREE)
   theme                GalleryTheme       @default(NOCTURNE)
+  publicShareId        String?            @unique
   storageUsedBytes     BigInt             @default(0)
   storageReservedBytes BigInt             @default(0)
   albumCount           Int                @default(0)
@@ -145,7 +146,8 @@ model Report {
   id               String       @id @default(cuid())
   tenantId         String
   tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  reporterTgUserId BigInt
+  reporterTgUserId BigInt?
+  reporterFingerprint String?
   albumId          String?
   album             Album?       @relation(fields: [albumId, tenantId], references: [id, tenantId], onDelete: Cascade)
   photoId          String?
@@ -161,6 +163,7 @@ model Report {
 
   @@index([tenantId, status, createdAt])
   @@index([reporterTgUserId, createdAt])
+  @@index([reporterFingerprint, createdAt])
 }
 
 enum OperatorAuditAction {

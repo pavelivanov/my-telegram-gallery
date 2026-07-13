@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
 import {
   GalleryTheme,
   Prisma,
@@ -205,6 +206,24 @@ export class TenantsService {
     );
   }
 
+  async getPublicShare(user: TgUser, slug: string) {
+    const owner = await this.requireShareOwner(user, slug);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: owner.id },
+      select: { publicShareId: true },
+    });
+    if (!tenant) throw new NotFoundException('Gallery not found');
+    return this.serializePublicShare(tenant.publicShareId);
+  }
+
+  async enablePublicShare(user: TgUser, slug: string) {
+    return this.changePublicShare(user, slug, true);
+  }
+
+  async disablePublicShare(user: TgUser, slug: string) {
+    return this.changePublicShare(user, slug, false);
+  }
+
   async listMembers(user: TgUser, slug: string) {
     const tenant = await this.requireOwnedTenant(user, slug);
     const memberships = await this.prisma.tenantMembership.findMany({
@@ -327,6 +346,55 @@ export class TenantsService {
     return tenant;
   }
 
+  private async requireShareOwner(user: TgUser, slug: string) {
+    if (this.mode === 'single') {
+      this.assertSingleAdmin(user);
+      if (slug !== DEFAULT_TENANT_SLUG) {
+        throw new NotFoundException('Gallery not found');
+      }
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!tenant) throw new NotFoundException('Gallery not found');
+      return tenant;
+    }
+    return this.requireOwnedTenant(user, slug);
+  }
+
+  private async changePublicShare(
+    user: TgUser,
+    slug: string,
+    enabled: boolean,
+  ) {
+    const owner = await this.requireShareOwner(user, slug);
+    const ownerTgUserId = BigInt(user.id);
+    return this.quota.withTenantLock(
+      owner.id,
+      async (transaction, lockedTenant) => {
+        this.quota.assertMutable(lockedTenant);
+        if (this.mode === 'multi') {
+          await this.requireOwnerMembership(
+            transaction,
+            lockedTenant.id,
+            ownerTgUserId,
+          );
+        }
+        if (enabled && lockedTenant.publicShareId) {
+          return this.serializePublicShare(lockedTenant.publicShareId);
+        }
+        const publicShareId = enabled
+          ? randomBytes(24).toString('base64url')
+          : null;
+        await transaction.tenant.update({
+          where: { id: lockedTenant.id },
+          data: { publicShareId },
+        });
+        return this.serializePublicShare(publicShareId);
+      },
+    );
+  }
+
   private async requireOwnerMembership(
     transaction: Prisma.TransactionClient,
     tenantId: string,
@@ -378,6 +446,13 @@ export class TenantsService {
       tgUserId: membership.tgUserId.toString(),
       role: membership.role.toLowerCase(),
       createdAt: membership.createdAt,
+    };
+  }
+
+  private serializePublicShare(publicShareId: string | null) {
+    return {
+      enabled: publicShareId !== null,
+      shareId: publicShareId,
     };
   }
 

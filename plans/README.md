@@ -88,9 +88,9 @@ Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reas
 - **Self-host beta**: Plans 001–003, then the self-host/legal parts of 007.
 - **Hosted private beta**: Plans 004–005 on the same image, with billing disabled.
 - **Paid SaaS beta**: Plan 006 plus the SaaS gate in 007.
-- BYO bot and public non-Telegram galleries remain post-launch candidates.
-  Bounded visual themes and collaborator administrators are implemented locally
-  but still require production-shaped Telegram acceptance.
+- BYO bot remains a post-launch candidate. Revocable public browser galleries,
+  bounded visual themes, and collaborator administrators are implemented
+  locally but still require production-shaped policy and client acceptance.
 
 ## Vetted findings
 
@@ -113,10 +113,10 @@ turns a prototype into an operable product.
 
 ## Direction options after launch
 
-1. **Public web galleries**: high product leverage because the storage/media
-   layer and tenant slugs will already exist, but it introduces a second auth/
-   privacy model and much more abuse/search exposure. Design it separately after
-   SaaS moderation is functioning.
+1. **Public web galleries**: delivered as private-by-default, owner-enabled
+   opaque links with anonymous report intake, keyed reporter fingerprints,
+   tenant isolation, suspension, and immediate revocation. Search indexing,
+   custom domains, and public discovery remain out of scope.
 2. **Collaborator admins**: delivered as bounded numeric-ID memberships with
    immediate revocation; invitation links and ownership transfer remain
    separate future work.

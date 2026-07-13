@@ -8,12 +8,13 @@ lives at `/admin/`, and the NestJS API at `/api/`.
 > license, ownership, security contact, release signing, and clean-environment
 > acceptance gates are still pending. Do not redistribute a release candidate.
 
-Gallery content and administration remain Telegram-only: signed Telegram Mini
-App init data is the authentication boundary. Ordinary browsers see a public
-product landing page, never gallery data. Standalone browser accounts, public
-non-Telegram galleries, ownership transfer, and bring-your-own bots are not
-supported. Multi mode supports owner-managed collaborator administrators for
-gallery content and presentation, without billing or ownership authority.
+Gallery administration remains Telegram-only: signed Telegram Mini App init
+data is the authentication boundary. Ordinary browsers see the product landing
+page unless an owner explicitly creates an opaque, revocable gallery link.
+Standalone browser accounts, ownership transfer, and bring-your-own bots are
+not supported. Multi mode supports owner-managed collaborator administrators
+for gallery content and presentation, without billing, publication, or
+ownership authority.
 Every gallery can use one of three built-in visual presets; arbitrary CSS,
 fonts, and theme assets are intentionally unsupported.
 
@@ -43,6 +44,7 @@ tokens, administrator IDs, storage credentials, paths, or signing secrets.
 | Storage | Local filesystem volume or S3-compatible object storage |
 | Transfers | Same-origin proxy; direct S3 transfer for reviewed hosted setups |
 | Tenancy | `single` for self-hosting; `multi` for the not-yet-launched SaaS |
+| Browser sharing | Owner-enabled opaque links; private/Telegram-only by default |
 | Edge/TLS | Docker Compose with Caddy; source-built one-service Railway escape hatch |
 
 ## Self-host in about 15 minutes
@@ -136,17 +138,24 @@ Important public operational routes:
 | `GET/POST /api/tenants` | Accessible galleries and multi-mode onboarding |
 | `GET /api/tenants/presentation` | Active gallery name and built-in visual preset |
 | `PUT /api/tenants/:slug/theme` | Owner/admin selection of a built-in visual preset |
+| `GET/POST/DELETE /api/tenants/:slug/public-share` | Owner-only browser-link controls |
 | `GET/POST /api/tenants/:slug/members` | Owner-only collaborator management |
 | `DELETE /api/tenants/:slug/members/:tgUserId` | Owner-only collaborator revocation |
 | `POST /api/reports` | Rate-limited gallery abuse report intake |
+| `GET /api/public/galleries/:shareId` | Owner-enabled browser gallery data |
+| `POST /api/public/galleries/:shareId/reports` | Rate-limited browser report intake |
 | `GET/POST /api/billing/*` | Owner plan, checkout, and renewal controls |
 | `POST /api/telegram/webhook` | Secret-authenticated Telegram payment updates |
 
 Album and upload routes require `Authorization: tma <initDataRaw>`; mutations
 require an env administrator in single mode or the selected tenant's owner/admin
-membership in multi mode. Billing and collaborator management remain owner-only.
+membership in multi mode. Billing, collaborator management, and browser
+publication remain owner-only.
 Theme writes accept only the server-defined `NOCTURNE`, `PAPER`, or `MOSS`
 values and are serialized with other tenant mutations.
+Public links use random 192-bit identifiers, can be revoked immediately, hide
+suspended tenants, and never turn tenant slugs into unauthenticated authority.
+Browser report deduplication stores a keyed fingerprint rather than a raw IP.
 Uploads use a server-created intent,
 then either a same-origin proxy PUT or presigned S3 PUT, followed by confirmation
 with the intent ID. Clients never choose or receive raw storage keys.

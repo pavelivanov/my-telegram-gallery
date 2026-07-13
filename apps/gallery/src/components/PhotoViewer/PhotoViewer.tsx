@@ -61,7 +61,8 @@ export const PhotoViewer: FC<{
   photos: Photo[];
   initialIndex: number;
   onClose: () => void;
-}> = ({ photos, initialIndex, onClose }) => {
+  showClose?: boolean;
+}> = ({ photos, initialIndex, onClose, showClose = false }) => {
   const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(initialIndex);
   // "cover": photos fill the whole screen (under the nav bar), cropped.
@@ -109,6 +110,16 @@ export const PhotoViewer: FC<{
 
   return (
     <div className="fixed inset-0 z-50 animate-fade bg-black">
+      {showClose ? (
+        <button
+          type="button"
+          className="absolute top-0 right-0 z-10 m-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-2xl text-white"
+          aria-label="Close photo viewer"
+          onClick={() => window.history.back()}
+        >
+          ×
+        </button>
+      ) : null}
       {/* Normal mode compensates fullscreen safe areas so the centered
           photo stays clear of Telegram's nav controls; cover mode goes
           edge to edge on purpose. */}

@@ -3,8 +3,9 @@
 The administrator Mini App lets a gallery owner select a tenant, manage albums,
 upload and reorder photos, review usage, and manage a Telegram Stars
 subscription. Owners and collaborator administrators can also preview and
-select one of the server-defined gallery presentation presets. Production
-serves it from `/admin/` in the repository's single application image.
+select one of the server-defined gallery presentation presets. Owners alone can
+create or revoke an optional public browser link. Production serves it from
+`/admin/` in the repository's single application image.
 
 ## Local development
 

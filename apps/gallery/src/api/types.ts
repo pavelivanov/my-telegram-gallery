@@ -6,6 +6,36 @@ export interface GalleryPresentation {
   theme: GalleryTheme;
 }
 
+export interface PublicGalleryInfo {
+  name: string;
+  telegramSlug: string;
+  theme: GalleryTheme;
+}
+
+export interface PublicAlbum {
+  id: string;
+  name: string;
+  createdAt: string;
+  photoCount: number;
+  coverUrl: string | null;
+  coverThumbUrl: string | null;
+}
+
+export interface PublicGalleryHome {
+  gallery: PublicGalleryInfo;
+  albums: PublicAlbum[];
+}
+
+export interface PublicAlbumDetail {
+  gallery: PublicGalleryInfo;
+  album: {
+    id: string;
+    name: string;
+    createdAt: string;
+    photos: Photo[];
+  };
+}
+
 export interface Album {
   id: string;
   name: string;

@@ -190,6 +190,9 @@ cannot inspect reporter detail or resolve reports.
       access billing/team controls, and loses write access after revocation.
 - [ ] Nocturne, Paper, and Moss render legibly on a staging gallery; a theme
       change never affects another tenant and is blocked while suspended.
+- [ ] A public browser link is owner-enabled for one staging tenant only;
+      anonymous reads/reports work, cross-tenant IDs stay hidden, and disable
+      immediately invalidates the old link.
 - [ ] Report rate/duplicate tests and suspension smoke pass.
 - [ ] One gallery report can be listed and resolved through the operator CLI.
 - [ ] Seeded secret strings are absent from captured logs.

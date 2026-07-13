@@ -5,6 +5,7 @@ import { isTMA, retrieveLaunchParams } from '@tma.js/sdk-react';
 import { Root } from '@/components/Root.tsx';
 import { EnvUnsupported } from '@/components/EnvUnsupported.tsx';
 import { LandingPage } from '@/components/LandingPage.tsx';
+import { PublicGalleryRoot } from '@/public/PublicGalleryRoot.tsx';
 import { init } from '@/init.ts';
 
 import './index.css';
@@ -14,13 +15,22 @@ import './mockEnv.ts';
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 
+const publicGalleryRoute = /^#\/public\/[A-Za-z0-9_-]{32}(?:\/|$)/.test(
+  window.location.hash,
+);
 const previewLanding = import.meta.env.DEV
   && new URLSearchParams(window.location.search).has('landing');
-const telegramEnvironment = previewLanding
+const telegramEnvironment = previewLanding || publicGalleryRoute
   ? false
   : await isTMA('complete');
 
-if (!telegramEnvironment) {
+if (publicGalleryRoute) {
+  root.render(
+    <StrictMode>
+      <PublicGalleryRoot />
+    </StrictMode>,
+  );
+} else if (!telegramEnvironment) {
   root.render(
     <StrictMode>
       <LandingPage />

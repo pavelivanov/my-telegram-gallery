@@ -61,6 +61,11 @@ export interface TenantMembers {
   members: TenantMember[];
 }
 
+export interface PublicShareState {
+  enabled: boolean;
+  shareId: string | null;
+}
+
 export interface BillingState {
   configured: boolean;
   testMode: boolean;
