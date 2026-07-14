@@ -126,7 +126,12 @@ describe('Application (e2e)', () => {
       .get('/api/tenants/presentation')
       .set('Authorization', authorization)
       .expect(200)
-      .expect({ name: 'Default gallery', slug: 'default', theme: 'nocturne' });
+      .expect({
+        name: 'Default gallery',
+        slug: 'default',
+        theme: 'nocturne',
+        bot: null,
+      });
 
     await request(app.getHttpServer())
       .put('/api/tenants/default/theme')
@@ -375,9 +380,13 @@ describe('Tenant isolation (e2e)', () => {
   let betaPhoto: PhotoResponseBody;
   let alphaPublicShareId: string;
 
-  function authorization(userId: number, startParam?: string): string {
+  function authorization(
+    userId: number,
+    startParam?: string,
+    botToken = process.env.TELEGRAM_BOT_TOKEN!,
+  ): string {
     return `tma ${createTelegramInitData({
-      botToken: process.env.TELEGRAM_BOT_TOKEN!,
+      botToken,
       startParam,
       user: { id: userId, first_name: `User ${userId}` },
     })}`;
@@ -638,12 +647,22 @@ describe('Tenant isolation (e2e)', () => {
       .set('Authorization', authorization(303))
       .set('X-Tenant-Slug', alpha.slug)
       .expect(200)
-      .expect({ name: alpha.name, slug: alpha.slug, theme: 'paper' });
+      .expect({
+        name: alpha.name,
+        slug: alpha.slug,
+        theme: 'paper',
+        bot: null,
+      });
     await request(app.getHttpServer())
       .get('/api/tenants/presentation')
       .set('Authorization', authorization(303, `album_${alphaAlbum.id}`))
       .expect(200)
-      .expect({ name: alpha.name, slug: alpha.slug, theme: 'paper' });
+      .expect({
+        name: alpha.name,
+        slug: alpha.slug,
+        theme: 'paper',
+        bot: null,
+      });
 
     await request(app.getHttpServer())
       .put(`/api/tenants/${alpha.slug}/theme`)
@@ -665,6 +684,176 @@ describe('Tenant isolation (e2e)', () => {
           expect.objectContaining({ id: alpha.id, theme: 'paper' }),
         ]);
       });
+  });
+
+  it('encrypts owner-verified tenant bots and binds their init data to one tenant', async () => {
+    const tenantBotToken = '700000001:tenant_bot_secret_token_1234567890';
+    const rotatedToken = '700000001:rotated_tenant_secret_token_123456789';
+
+    await request(app.getHttpServer())
+      .get(`/api/tenants/${alpha.slug}/bot`)
+      .set('Authorization', authorization(909))
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/tenants/${alpha.slug}/bot`)
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect({ configured: true, connected: false, bot: null });
+
+    const rejectedGetMe = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error_code: 401 }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    await request(app.getHttpServer())
+      .put(`/api/tenants/${alpha.slug}/bot`)
+      .set('Authorization', authorization(101))
+      .send({
+        botToken: '700000002:rejected_tenant_secret_token_123456789',
+        adminAppShortName: 'alpha_admin',
+        galleryAppShortName: 'alpha_gallery',
+      })
+      .expect(400)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          message: 'Telegram rejected this bot token',
+        });
+      });
+    rejectedGetMe.mockRestore();
+
+    const getMe = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            id: 700_000_001,
+            is_bot: true,
+            first_name: 'Alpha Gallery',
+            username: 'alpha_white_label_bot',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    await request(app.getHttpServer())
+      .put(`/api/tenants/${alpha.slug}/bot`)
+      .set('Authorization', authorization(101))
+      .send({
+        botToken: tenantBotToken,
+        adminAppShortName: 'alpha_admin',
+        galleryAppShortName: 'alpha_gallery',
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          configured: true,
+          connected: true,
+          bot: {
+            username: 'alpha_white_label_bot',
+            adminAppShortName: 'alpha_admin',
+            galleryAppShortName: 'alpha_gallery',
+          },
+        });
+        expect(JSON.stringify(response.body)).not.toContain('bot_secret');
+      });
+    expect(getMe).toHaveBeenCalledWith(
+      `https://api.telegram.org/bot${tenantBotToken}/getMe`,
+      expect.objectContaining({ method: 'POST', redirect: 'error' }),
+    );
+    getMe.mockRestore();
+
+    const stored = await prisma.tenantBotCredential.findUniqueOrThrow({
+      where: { tenantId: alpha.id },
+    });
+    expect(stored.keyId).toBe('e2e');
+    expect(stored.tokenIv).toHaveLength(12);
+    expect(stored.tokenAuthTag).toHaveLength(16);
+    expect(Buffer.from(stored.tokenCiphertext).toString('utf8')).not.toContain(
+      'tenant_bot_secret',
+    );
+
+    const customAuthorization = authorization(
+      101,
+      `tenant_${alpha.slug}`,
+      tenantBotToken,
+    );
+    await request(app.getHttpServer())
+      .get('/api/tenants')
+      .set('Authorization', customAuthorization)
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as Array<{
+          bot: { username: string } | null;
+          id: string;
+        }>;
+        expect(body.map(({ id }) => id)).toEqual([alpha.id]);
+        expect(body[0]?.bot?.username).toBe('alpha_white_label_bot');
+      });
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set('Authorization', customAuthorization)
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set('Authorization', customAuthorization)
+      .set('X-Tenant-Slug', beta.slug)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/api/tenants/${beta.slug}`)
+      .set('Authorization', customAuthorization)
+      .expect(404);
+    await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', customAuthorization)
+      .send({ name: 'Escaped tenant', slug: 'escaped_tenant' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set(
+        'Authorization',
+        authorization(101, `tenant_${beta.slug}`, tenantBotToken),
+      )
+      .expect(401);
+
+    const rotateGetMe = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            id: 700_000_001,
+            is_bot: true,
+            username: 'alpha_white_label_bot',
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    await request(app.getHttpServer())
+      .put(`/api/tenants/${alpha.slug}/bot`)
+      .set('Authorization', authorization(101))
+      .send({
+        botToken: rotatedToken,
+        adminAppShortName: 'alpha_admin',
+        galleryAppShortName: 'alpha_gallery',
+      })
+      .expect(200);
+    rotateGetMe.mockRestore();
+
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set('Authorization', customAuthorization)
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set(
+        'Authorization',
+        authorization(101, `tenant_${alpha.slug}`, rotatedToken),
+      )
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(200);
   });
 
   it('publishes only an owner-enabled opaque browser link with safe reports', async () => {
@@ -690,6 +879,12 @@ describe('Tenant isolation (e2e)', () => {
       .expect(200)
       .expect('Cache-Control', 'private, no-store')
       .expect((response) => {
+        const body = response.body as {
+          gallery: {
+            bot: { username: string } | null;
+          };
+        };
+        expect(body.gallery.bot?.username).toBe('alpha_white_label_bot');
         expect(response.body).toMatchObject({
           gallery: {
             name: alpha.name,
@@ -1156,6 +1351,7 @@ describe('Tenant isolation (e2e)', () => {
     ]);
     const photos = app.get(PhotosService);
     const tenantContext = {
+      bot: null,
       id: alpha.id,
       mode: 'multi' as const,
       name: alpha.name,
@@ -1219,6 +1415,24 @@ describe('Tenant isolation (e2e)', () => {
       where: { id: alpha.id },
       data: { status: 'ACTIVE' },
     });
+  });
+
+  it('revokes tenant-bot authentication when the owner disconnects it', async () => {
+    const rotatedToken = '700000001:rotated_tenant_secret_token_123456789';
+    await request(app.getHttpServer())
+      .delete(`/api/tenants/${alpha.slug}/bot`)
+      .set('Authorization', authorization(101))
+      .expect(200)
+      .expect({ configured: true, connected: false, bot: null });
+
+    await request(app.getHttpServer())
+      .get('/api/albums')
+      .set(
+        'Authorization',
+        authorization(101, `tenant_${alpha.slug}`, rotatedToken),
+      )
+      .set('X-Tenant-Slug', alpha.slug)
+      .expect(401);
   });
 
   afterAll(async () => {

@@ -40,12 +40,20 @@ export class TenantsService {
     this.mode = config.getOrThrow<TenancyMode>('TENANCY_MODE');
   }
 
-  async listAccessible(user: TgUser) {
+  async listAccessible(user: TgUser, botTenantId?: string) {
     if (this.mode === 'single') {
       this.assertSingleAdmin(user);
       const tenant = await this.prisma.tenant.findUnique({
         where: { slug: DEFAULT_TENANT_SLUG },
         include: {
+          botCredential: {
+            select: {
+              username: true,
+              adminAppShortName: true,
+              galleryAppShortName: true,
+              verifiedAt: true,
+            },
+          },
           _count: {
             select: { reports: { where: { status: ReportStatus.OPEN } } },
           },
@@ -57,12 +65,21 @@ export class TenantsService {
     const tgUserId = BigInt(user.id);
     const tenants = await this.prisma.tenant.findMany({
       where: {
+        ...(botTenantId ? { id: botTenantId } : {}),
         memberships: {
           some: { tgUserId },
         },
       },
       orderBy: [{ name: 'asc' }, { slug: 'asc' }],
       include: {
+        botCredential: {
+          select: {
+            username: true,
+            adminAppShortName: true,
+            galleryAppShortName: true,
+            verifiedAt: true,
+          },
+        },
         memberships: {
           where: { tgUserId },
           select: { role: true },
@@ -77,9 +94,17 @@ export class TenantsService {
     );
   }
 
-  async create(user: TgUser, nameRaw: string, slug: string) {
+  async create(
+    user: TgUser,
+    nameRaw: string,
+    slug: string,
+    botTenantId?: string,
+  ) {
     if (this.mode !== 'multi') {
       throw new ForbiddenException('Tenant creation requires multi mode');
+    }
+    if (botTenantId) {
+      throw new ForbiddenException('Create galleries through the service bot');
     }
     if (RESERVED_TENANT_SLUGS.has(slug)) {
       throw new ConflictException('Tenant slug is reserved');
@@ -134,13 +159,21 @@ export class TenantsService {
     }
   }
 
-  async getAccessible(user: TgUser, slug: string) {
+  async getAccessible(user: TgUser, slug: string, botTenantId?: string) {
     if (this.mode === 'single') {
       this.assertSingleAdmin(user);
       if (slug !== DEFAULT_TENANT_SLUG) throw new NotFoundException();
       const tenant = await this.prisma.tenant.findUnique({
         where: { slug },
         include: {
+          botCredential: {
+            select: {
+              username: true,
+              adminAppShortName: true,
+              galleryAppShortName: true,
+              verifiedAt: true,
+            },
+          },
           _count: {
             select: { reports: { where: { status: ReportStatus.OPEN } } },
           },
@@ -153,12 +186,21 @@ export class TenantsService {
     const tgUserId = BigInt(user.id);
     const tenant = await this.prisma.tenant.findFirst({
       where: {
+        ...(botTenantId ? { id: botTenantId } : {}),
         slug,
         memberships: {
           some: { tgUserId },
         },
       },
       include: {
+        botCredential: {
+          select: {
+            username: true,
+            adminAppShortName: true,
+            galleryAppShortName: true,
+            verifiedAt: true,
+          },
+        },
         memberships: {
           where: { tgUserId },
           select: { role: true },
@@ -178,11 +220,17 @@ export class TenantsService {
       name: context.name,
       slug: context.slug,
       theme: context.theme.toLowerCase(),
+      bot: context.bot,
     };
   }
 
-  async updateTheme(user: TgUser, slug: string, theme: GalleryTheme) {
-    const tenant = await this.requireAdminTenant(user, slug);
+  async updateTheme(
+    user: TgUser,
+    slug: string,
+    theme: GalleryTheme,
+    botTenantId?: string,
+  ) {
+    const tenant = await this.requireAdminTenant(user, slug, botTenantId);
     const tgUserId = BigInt(user.id);
 
     return this.quota.withTenantLock(
@@ -206,8 +254,8 @@ export class TenantsService {
     );
   }
 
-  async getPublicShare(user: TgUser, slug: string) {
-    const owner = await this.requireShareOwner(user, slug);
+  async getPublicShare(user: TgUser, slug: string, botTenantId?: string) {
+    const owner = await this.requireShareOwner(user, slug, botTenantId);
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: owner.id },
       select: { publicShareId: true },
@@ -216,16 +264,16 @@ export class TenantsService {
     return this.serializePublicShare(tenant.publicShareId);
   }
 
-  async enablePublicShare(user: TgUser, slug: string) {
-    return this.changePublicShare(user, slug, true);
+  async enablePublicShare(user: TgUser, slug: string, botTenantId?: string) {
+    return this.changePublicShare(user, slug, true, botTenantId);
   }
 
-  async disablePublicShare(user: TgUser, slug: string) {
-    return this.changePublicShare(user, slug, false);
+  async disablePublicShare(user: TgUser, slug: string, botTenantId?: string) {
+    return this.changePublicShare(user, slug, false, botTenantId);
   }
 
-  async listMembers(user: TgUser, slug: string) {
-    const tenant = await this.requireOwnedTenant(user, slug);
+  async listMembers(user: TgUser, slug: string, botTenantId?: string) {
+    const tenant = await this.requireOwnedTenant(user, slug, botTenantId);
     const memberships = await this.prisma.tenantMembership.findMany({
       where: { tenantId: tenant.id },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }, { tgUserId: 'asc' }],
@@ -238,10 +286,15 @@ export class TenantsService {
     };
   }
 
-  async addAdmin(user: TgUser, slug: string, tgUserIdRaw: string) {
+  async addAdmin(
+    user: TgUser,
+    slug: string,
+    tgUserIdRaw: string,
+    botTenantId?: string,
+  ) {
     const tgUserId = this.parseTgUserId(tgUserIdRaw);
     const ownerTgUserId = BigInt(user.id);
-    const owned = await this.requireOwnedTenant(user, slug);
+    const owned = await this.requireOwnedTenant(user, slug, botTenantId);
 
     try {
       return await this.quota.withTenantLock(
@@ -276,10 +329,15 @@ export class TenantsService {
     }
   }
 
-  async removeAdmin(user: TgUser, slug: string, tgUserIdRaw: string) {
+  async removeAdmin(
+    user: TgUser,
+    slug: string,
+    tgUserIdRaw: string,
+    botTenantId?: string,
+  ) {
     const tgUserId = this.parseTgUserId(tgUserIdRaw);
     const ownerTgUserId = BigInt(user.id);
-    const owned = await this.requireOwnedTenant(user, slug);
+    const owned = await this.requireOwnedTenant(user, slug, botTenantId);
 
     return this.quota.withTenantLock(owned.id, async (transaction, tenant) => {
       this.quota.assertMutable(tenant);
@@ -304,12 +362,17 @@ export class TenantsService {
     }
   }
 
-  private async requireOwnedTenant(user: TgUser, slug: string) {
+  private async requireOwnedTenant(
+    user: TgUser,
+    slug: string,
+    botTenantId?: string,
+  ) {
     if (this.mode !== 'multi') {
       throw new ForbiddenException('Collaborators require multi mode');
     }
     const tenant = await this.prisma.tenant.findFirst({
       where: {
+        ...(botTenantId ? { id: botTenantId } : {}),
         slug,
         memberships: {
           some: { role: TenantRole.OWNER, tgUserId: BigInt(user.id) },
@@ -321,7 +384,11 @@ export class TenantsService {
     return tenant;
   }
 
-  private async requireAdminTenant(user: TgUser, slug: string) {
+  private async requireAdminTenant(
+    user: TgUser,
+    slug: string,
+    botTenantId?: string,
+  ) {
     if (this.mode === 'single') {
       this.assertSingleAdmin(user);
       if (slug !== DEFAULT_TENANT_SLUG) {
@@ -337,6 +404,7 @@ export class TenantsService {
 
     const tenant = await this.prisma.tenant.findFirst({
       where: {
+        ...(botTenantId ? { id: botTenantId } : {}),
         slug,
         memberships: { some: { tgUserId: BigInt(user.id) } },
       },
@@ -346,7 +414,11 @@ export class TenantsService {
     return tenant;
   }
 
-  private async requireShareOwner(user: TgUser, slug: string) {
+  private async requireShareOwner(
+    user: TgUser,
+    slug: string,
+    botTenantId?: string,
+  ) {
     if (this.mode === 'single') {
       this.assertSingleAdmin(user);
       if (slug !== DEFAULT_TENANT_SLUG) {
@@ -359,15 +431,16 @@ export class TenantsService {
       if (!tenant) throw new NotFoundException('Gallery not found');
       return tenant;
     }
-    return this.requireOwnedTenant(user, slug);
+    return this.requireOwnedTenant(user, slug, botTenantId);
   }
 
   private async changePublicShare(
     user: TgUser,
     slug: string,
     enabled: boolean,
+    botTenantId?: string,
   ) {
-    const owner = await this.requireShareOwner(user, slug);
+    const owner = await this.requireShareOwner(user, slug, botTenantId);
     const ownerTgUserId = BigInt(user.id);
     return this.quota.withTenantLock(
       owner.id,
@@ -470,6 +543,12 @@ export class TenantsService {
       status: string;
       theme: GalleryTheme;
       updatedAt: Date;
+      botCredential?: {
+        adminAppShortName: string;
+        galleryAppShortName: string;
+        username: string;
+        verifiedAt: Date;
+      } | null;
       _count?: { reports: number };
     },
     role: TenantRole | undefined,
@@ -483,6 +562,14 @@ export class TenantsService {
       status: tenant.status.toLowerCase(),
       plan: tenant.plan.toLowerCase(),
       theme: tenant.theme.toLowerCase(),
+      bot: tenant.botCredential
+        ? {
+            username: tenant.botCredential.username,
+            adminAppShortName: tenant.botCredential.adminAppShortName,
+            galleryAppShortName: tenant.botCredential.galleryAppShortName,
+            verifiedAt: tenant.botCredential.verifiedAt,
+          }
+        : null,
       policyVersion: PLAN_POLICY_VERSION,
       openReportCount: tenant._count?.reports ?? 0,
       usage: {

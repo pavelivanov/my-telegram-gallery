@@ -25,6 +25,7 @@ import { TelegramModule } from './telegram/telegram.module';
 import { BillingModule } from './billing/billing.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PublicGalleriesModule } from './public-galleries/public-galleries.module';
+import { TenantBotsModule } from './tenant-bots/tenant-bots.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { PublicGalleriesModule } from './public-galleries/public-galleries.modul
     QuotaModule,
     UsageModule,
     TelegramModule,
+    TenantBotsModule,
     BillingModule,
     WebhooksModule,
     ReportsModule,

@@ -7,6 +7,10 @@ receive the product landing page unless an owner-enabled opaque public-gallery
 hash is present. Production serves it from `/` in the repository's single
 application image.
 
+Authenticated tenant and album links use a connected tenant-owned bot when one
+is present; init data from that bot remains bound to its tenant. Otherwise links
+continue to use the shared service bot.
+
 ## Local development
 
 Install dependencies and configure `apps/api/.env` as described in the

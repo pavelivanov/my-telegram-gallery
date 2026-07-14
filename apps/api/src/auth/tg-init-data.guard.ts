@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { TenantBotsService } from '../tenant-bots/tenant-bots.service';
 import type { TgRequest } from './request-context';
 
 const FUTURE_CLOCK_SKEW_SECONDS = 30;
@@ -23,9 +24,12 @@ export interface TgUser {
  */
 @Injectable()
 export class TgInitDataGuard implements CanActivate {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly tenantBots: TenantBotsService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<TgRequest>();
     const [type, initDataRaw] = (req.headers.authorization ?? '').split(' ');
     if (type !== 'tma' || !initDataRaw) {
@@ -45,20 +49,24 @@ export class TgInitDataGuard implements CanActivate {
       .sort()
       .join('\n');
 
-    const botToken = this.config.getOrThrow<string>('TELEGRAM_BOT_TOKEN');
-    const secretKey = createHmac('sha256', 'WebAppData')
-      .update(botToken)
-      .digest();
-    const computed = createHmac('sha256', secretKey)
-      .update(dataCheckString)
-      .digest();
     const received = Buffer.from(hash, 'hex');
-
-    if (
-      received.length !== computed.length ||
-      !timingSafeEqual(computed, received)
-    ) {
-      throw new UnauthorizedException('Invalid init data signature');
+    const sharedBotToken = this.config.getOrThrow<string>('TELEGRAM_BOT_TOKEN');
+    let botTenantId: string | undefined;
+    if (!this.signatureMatches(dataCheckString, received, sharedBotToken)) {
+      const tenantCredential = await this.tenantBots.resolveAuthCredential(
+        params.get('start_param') ?? undefined,
+      );
+      if (
+        !tenantCredential ||
+        !this.signatureMatches(
+          dataCheckString,
+          received,
+          tenantCredential.token,
+        )
+      ) {
+        throw new UnauthorizedException('Invalid init data signature');
+      }
+      botTenantId = tenantCredential.tenantId;
     }
 
     const authDateRaw = params.get('auth_date');
@@ -99,10 +107,27 @@ export class TgInitDataGuard implements CanActivate {
     const tgUser = user as TgUser;
     req.tgAuth = {
       authDate,
+      ...(botTenantId ? { botTenantId } : {}),
       startParam: params.get('start_param') ?? undefined,
       user: tgUser,
     };
     req.tgUser = tgUser;
     return true;
+  }
+
+  private signatureMatches(
+    dataCheckString: string,
+    received: Buffer,
+    botToken: string,
+  ): boolean {
+    const secretKey = createHmac('sha256', 'WebAppData')
+      .update(botToken)
+      .digest();
+    const computed = createHmac('sha256', secretKey)
+      .update(dataCheckString)
+      .digest();
+    return (
+      received.length === computed.length && timingSafeEqual(computed, received)
+    );
   }
 }

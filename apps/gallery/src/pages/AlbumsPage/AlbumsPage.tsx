@@ -17,7 +17,7 @@ export const AlbumsPage: FC = () => {
     queryFn: () => api<Album[]>('/albums', undefined, tenantSlug ?? undefined),
   });
   const shareLink = tenantSlug
-    ? buildGalleryHomeLink(config, tenantSlug)
+    ? buildGalleryHomeLink(config, tenantSlug, presentation.bot)
     : null;
 
   const copyLink = async () => {

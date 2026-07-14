@@ -132,4 +132,40 @@ describe('TelegramApiService', () => {
 
     expect(timeout).toHaveBeenLastCalledWith(250);
   });
+
+  it('verifies a tenant bot with getMe outside billing test mode', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      successful({
+        id: 700_000_001,
+        is_bot: true,
+        first_name: 'Tenant gallery',
+        username: 'tenant_gallery_bot',
+      }),
+    );
+    const token = '700000001:tenant_bot_secret_token_1234567890';
+
+    await expect(service().verifyBotToken(token)).resolves.toEqual({
+      id: 700_000_001n,
+      username: 'tenant_gallery_bot',
+    });
+    expect(requestUrl(fetchMock.mock.calls[0][0])).toBe(
+      `https://api.telegram.org/bot${token}/getMe`,
+    );
+    expect(requestUrl(fetchMock.mock.calls[0][0])).not.toContain('/test/');
+  });
+
+  it('rejects a getMe identity that is not a named bot', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        successful({ id: 42, is_bot: false, username: 'ordinary_user' }),
+      );
+
+    await expect(
+      service().verifyBotToken('700000001:tenant_bot_secret_token_1234567890'),
+    ).rejects.toMatchObject<TelegramApiError>({
+      method: 'getMe',
+      retryable: false,
+    });
+  });
 });

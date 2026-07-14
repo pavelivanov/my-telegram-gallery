@@ -28,7 +28,10 @@ export class TenantsController {
 
   @Get()
   list(@Req() request: TgRequest) {
-    return this.tenants.listAccessible(request.tgAuth!.user);
+    return this.tenants.listAccessible(
+      request.tgAuth!.user,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Get('presentation')
@@ -40,12 +43,21 @@ export class TenantsController {
   @Post()
   @UseRateLimit('admin')
   create(@Req() request: TgRequest, @Body() dto: CreateTenantDto) {
-    return this.tenants.create(request.tgAuth!.user, dto.name, dto.slug);
+    return this.tenants.create(
+      request.tgAuth!.user,
+      dto.name,
+      dto.slug,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Get(':slug')
   get(@Req() request: TgRequest, @Param('slug') slug: string) {
-    return this.tenants.getAccessible(request.tgAuth!.user, slug);
+    return this.tenants.getAccessible(
+      request.tgAuth!.user,
+      slug,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Put(':slug/theme')
@@ -55,29 +67,50 @@ export class TenantsController {
     @Param('slug') slug: string,
     @Body() dto: UpdateTenantThemeDto,
   ) {
-    return this.tenants.updateTheme(request.tgAuth!.user, slug, dto.theme);
+    return this.tenants.updateTheme(
+      request.tgAuth!.user,
+      slug,
+      dto.theme,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Get(':slug/public-share')
   publicShare(@Req() request: TgRequest, @Param('slug') slug: string) {
-    return this.tenants.getPublicShare(request.tgAuth!.user, slug);
+    return this.tenants.getPublicShare(
+      request.tgAuth!.user,
+      slug,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Post(':slug/public-share')
   @UseRateLimit('admin')
   enablePublicShare(@Req() request: TgRequest, @Param('slug') slug: string) {
-    return this.tenants.enablePublicShare(request.tgAuth!.user, slug);
+    return this.tenants.enablePublicShare(
+      request.tgAuth!.user,
+      slug,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Delete(':slug/public-share')
   @UseRateLimit('admin')
   disablePublicShare(@Req() request: TgRequest, @Param('slug') slug: string) {
-    return this.tenants.disablePublicShare(request.tgAuth!.user, slug);
+    return this.tenants.disablePublicShare(
+      request.tgAuth!.user,
+      slug,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Get(':slug/members')
   listMembers(@Req() request: TgRequest, @Param('slug') slug: string) {
-    return this.tenants.listMembers(request.tgAuth!.user, slug);
+    return this.tenants.listMembers(
+      request.tgAuth!.user,
+      slug,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Post(':slug/members')
@@ -87,7 +120,12 @@ export class TenantsController {
     @Param('slug') slug: string,
     @Body() dto: AddTenantAdminDto,
   ) {
-    return this.tenants.addAdmin(request.tgAuth!.user, slug, dto.tgUserId);
+    return this.tenants.addAdmin(
+      request.tgAuth!.user,
+      slug,
+      dto.tgUserId,
+      request.tgAuth!.botTenantId,
+    );
   }
 
   @Delete(':slug/members/:tgUserId')
@@ -97,6 +135,11 @@ export class TenantsController {
     @Param('slug') slug: string,
     @Param('tgUserId') tgUserId: string,
   ) {
-    return this.tenants.removeAdmin(request.tgAuth!.user, slug, tgUserId);
+    return this.tenants.removeAdmin(
+      request.tgAuth!.user,
+      slug,
+      tgUserId,
+      request.tgAuth!.botTenantId,
+    );
   }
 }

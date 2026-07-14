@@ -99,6 +99,12 @@ identifiers.
   and browser reports retain only a keyed fingerprint rather than a raw IP.
   Migration/isolation/component checks are automated; policy review, proxy-log
   retention review, and staging abuse-response acceptance remain external.
+- Multi-mode owners can connect a white-label Telegram bot after a non-mutating
+  `getMe` verification. Tokens use tenant-bound AES-256-GCM encryption, never
+  appear in API responses, and rotate/revoke without an auth cache. Custom-bot
+  init data is cryptographically confined to its tenant, including tenant-list
+  and selector routes. BotFather client acceptance, encryption-key custody, and
+  recovery drills remain external; tenant webhooks and billing are not active.
 - Unused inherited template screenshots and nested GitHub Pages workflows were
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.

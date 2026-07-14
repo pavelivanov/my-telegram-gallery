@@ -1,9 +1,9 @@
 # Tenancy modes and transition runbook
 
 The same image supports a self-hosted single gallery and a hosted multi-gallery
-service. `TENANCY_MODE=single` is the default. Both modes use one Telegram bot;
-per-tenant bot tokens, ownership transfer, and white-label bots are not
-supported.
+service. `TENANCY_MODE=single` is the default. Both modes use the shared service
+bot; multi mode can additionally connect one encrypted tenant-owned bot per
+gallery. Ownership transfer is not supported.
 
 ## Mode behavior
 
@@ -29,6 +29,25 @@ supported.
   the first tenant in the database.
 - New media uses `tenants/<tenantId>/...`. Existing objects remain at their old
   keys and continue to work; the transition does not move media.
+
+## Optional tenant-owned bots
+
+When `TENANT_BOT_ENCRYPTION_KEYS` is configured, a multi-mode owner can open
+**Bot** and connect a BotFather token plus the Admin and Gallery Mini App short
+names. Telegram `getMe` verifies the token before the application encrypts it
+with AES-256-GCM. The token is never returned by an API response.
+
+Init data verified by a tenant token is bound to that tenant ID. A header,
+`tenant_<slug>`, or `album_<id>` resolving elsewhere is rejected even when the
+forged Telegram user would have membership there. Tenant list/detail and create
+routes apply the same boundary, preventing one compromised tenant token from
+becoming a service-wide identity oracle.
+
+Custom Mini App links must retain their generated `startapp` selector. The
+shared service bot remains available for recovery and tenant creation.
+Connecting a bot does not register a webhook or move Stars billing to it. See
+[tenant-bots.md](tenant-bots.md) for setup, key rotation, token rotation, and
+incident guidance.
 
 ## Collaborator administrators
 
@@ -149,7 +168,11 @@ Rehearse these steps on a disposable restore before production.
 9. Enable a public browser link for only the first tenant. Verify its albums and
    report path work without Telegram auth, cross-tenant album IDs remain hidden,
    the collaborator cannot change the link, and disable invalidates it.
-10. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
+10. Configure a staging tenant-bot encryption key and connect a disposable bot
+    to the first tenant. Verify its generated links, cross-tenant rejection,
+    token rotation, disconnect, and shared-bot recovery. Do not set a tenant
+    bot webhook.
+11. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
    enablement in production as separate observable steps.
 
 The repository E2E gate rehearses the migrations against empty and populated

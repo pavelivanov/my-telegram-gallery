@@ -33,7 +33,7 @@ async function cleanupUploads(): Promise<void> {
     };
     for (const tenant of tenants) {
       const result = await photos.cleanupExpiredUploads(
-        { ...tenant, mode },
+        { ...tenant, bot: null, mode },
         { dryRun: options.dryRun, limit: options.limit },
       );
       totals.processed += result.processed;

@@ -7,6 +7,10 @@ select one of the server-defined gallery presentation presets. Owners alone can
 create or revoke an optional public browser link. Production serves it from
 `/admin/` in the repository's single application image.
 
+In multi mode, owners can also use **Bot** to verify, connect, rotate, or
+disconnect an encrypted tenant-owned Telegram bot. The token is write-only in
+the UI and the shared service bot remains the recovery path.
+
 ## Local development
 
 Install dependencies and configure `apps/api/.env` as described in the

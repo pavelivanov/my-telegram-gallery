@@ -193,6 +193,13 @@ cannot inspect reporter detail or resolve reports.
 - [ ] A public browser link is owner-enabled for one staging tenant only;
       anonymous reads/reports work, cross-tenant IDs stay hidden, and disable
       immediately invalidates the old link.
+- [ ] If tenant bots are enabled, a disposable tenant bot passes `getMe`, its
+      token is absent from rows/logs/responses in plaintext, tenant A cannot
+      select tenant B, rotation invalidates the previous token, and shared-bot
+      recovery works after disconnect.
+- [ ] Every key ID referenced by `TenantBotCredential` remains present in
+      `TENANT_BOT_ENCRYPTION_KEYS`; old keys are removed only after their row
+      count reaches zero.
 - [ ] Report rate/duplicate tests and suspension smoke pass.
 - [ ] One gallery report can be listed and resolved through the operator CLI.
 - [ ] Seeded secret strings are absent from captured logs.

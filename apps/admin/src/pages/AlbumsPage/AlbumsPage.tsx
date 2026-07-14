@@ -51,6 +51,15 @@ export const AlbumsPage: FC = () => {
             my gallery
           </span>
           <div className="flex items-center gap-5">
+            {workspace?.selected.role === 'owner' ? (
+              <button
+                type="button"
+                className="text-[11px] font-medium uppercase tracking-[0.18em] text-ink-dim active:text-brass"
+                onClick={() => navigate('/bot')}
+              >
+                Bot
+              </button>
+            ) : null}
             {!workspace || workspace.selected.role === 'owner' ? (
               <button
                 type="button"

@@ -51,6 +51,7 @@ describe('validateEnv', () => {
     expect(env.BILLING_PRO_PRICE_STARS).toBeUndefined();
     expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
     expect(env.TENANCY_MODE).toBe('single');
+    expect(env.TENANT_BOT_ENCRYPTION_KEYS).toEqual([]);
     expect(env.SENTRY_DSN).toBeUndefined();
     expect(env.SENTRY_ENVIRONMENT).toBeUndefined();
     expect(env.SENTRY_RELEASE).toBeUndefined();
@@ -90,6 +91,24 @@ describe('validateEnv', () => {
 
     expect(env.TENANCY_MODE).toBe('multi');
     expect(env.ADMIN_TG_IDS).toEqual([]);
+  });
+
+  it('normalizes ordered tenant bot encryption keys', () => {
+    const first = Buffer.alloc(32, 1).toString('base64url');
+    const previous = Buffer.alloc(32, 2).toString('base64url');
+    const env = validateEnv(
+      validEnvironment({
+        TENANCY_MODE: 'multi',
+        ADMIN_TG_IDS: '',
+        TENANT_BOT_ENCRYPTION_KEYS: `active:${first},old_key:${previous}`,
+      }),
+    );
+
+    expect(env.TENANT_BOT_ENCRYPTION_KEYS.map(({ id }) => id)).toEqual([
+      'active',
+      'old_key',
+    ]);
+    expect(env.TENANT_BOT_ENCRYPTION_KEYS[0].key).toEqual(Buffer.alloc(32, 1));
   });
 
   it('maps legacy R2 variables to the normalized S3 configuration', () => {
@@ -161,6 +180,18 @@ describe('validateEnv', () => {
     ],
     ['missing admins', { ADMIN_TG_IDS: '', ADMIN_TG_ID: '' }, 'ADMIN_TG_IDS'],
     ['bad tenancy mode', { TENANCY_MODE: 'team' }, 'single or multi'],
+    [
+      'invalid tenant bot key',
+      { TENANT_BOT_ENCRYPTION_KEYS: 'active:not-base64url' },
+      'keyId:base64url-32-byte-key',
+    ],
+    [
+      'duplicate tenant bot key ID',
+      {
+        TENANT_BOT_ENCRYPTION_KEYS: `same:${Buffer.alloc(32, 1).toString('base64url')},same:${Buffer.alloc(32, 2).toString('base64url')}`,
+      },
+      'duplicate key ID',
+    ],
     ['bad admin', { ADMIN_TG_IDS: '1,abc' }, 'non-decimal'],
     ['bad max age', { TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: '59' }, 'between 60'],
     [

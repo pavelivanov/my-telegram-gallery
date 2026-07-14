@@ -37,6 +37,7 @@ model Tenant {
   plan                 TenantPlan         @default(FREE)
   theme                GalleryTheme       @default(NOCTURNE)
   publicShareId        String?            @unique
+  botCredential        TenantBotCredential?
   storageUsedBytes     BigInt             @default(0)
   storageReservedBytes BigInt             @default(0)
   albumCount           Int                @default(0)
@@ -50,6 +51,24 @@ model Tenant {
   billingPayments      BillingPayment[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
+}
+
+model TenantBotCredential {
+  tenantId            String   @id
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  telegramBotId       BigInt   @unique
+  username            String
+  adminAppShortName   String
+  galleryAppShortName String
+  tokenCiphertext     Bytes
+  tokenIv             Bytes
+  tokenAuthTag        Bytes
+  keyId               String
+  verifiedAt          DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([username])
 }
 
 model TenantMembership {

@@ -88,9 +88,10 @@ Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reas
 - **Self-host beta**: Plans 001–003, then the self-host/legal parts of 007.
 - **Hosted private beta**: Plans 004–005 on the same image, with billing disabled.
 - **Paid SaaS beta**: Plan 006 plus the SaaS gate in 007.
-- BYO bot remains a post-launch candidate. Revocable public browser galleries,
-  bounded visual themes, and collaborator administrators are implemented
-  locally but still require production-shaped policy and client acceptance.
+- The BYO-bot foundation, revocable public browser galleries, bounded visual
+  themes, and collaborator administrators are implemented locally but still
+  require production-shaped policy and client acceptance. Per-tenant webhook,
+  command, support, and Stars routing remain post-launch candidates.
 
 ## Vetted findings
 
@@ -120,9 +121,11 @@ turns a prototype into an operable product.
 2. **Collaborator admins**: delivered as bounded numeric-ID memberships with
    immediate revocation; invitation links and ownership transfer remain
    separate future work.
-3. **BYO bot / white label**: potentially paid differentiation, but it requires
-   encrypted-at-rest tokens, rotation, per-bot validation caching/webhooks, and
-   recovery. Keep it out of the initial tenant and billing schema.
+3. **BYO bot / white label**: the safe foundation is delivered with
+   encrypted-at-rest owner-rotatable tokens, shared-bot recovery, custom links,
+   and tenant-bound init-data validation. Per-bot validation caching, webhooks,
+   commands, payment support, and Stars routing still require a separate
+   reviewed design.
 4. **Themes**: delivered as three server-validated presets shared by self-hosted
    and hosted modes. Custom CSS, fonts, and tenant-uploaded theme assets remain
    intentionally out of scope.
@@ -155,9 +158,10 @@ require revalidation before billing/template work.
 - **Trust `X-Tenant` because `start_param` established tenant**: rejected. A
   header is mutable, and start params guide navigation. Membership + scoped DB
   queries authorize mutations.
-- **Store optional `Tenant.botToken` now for future BYO**: rejected. Storing a
-  high-value secret without the complete encryption/rotation/webhook design
-  increases risk without launch value.
+- **Store plaintext `Tenant.botToken` for future BYO**: rejected. The delivered
+  foundation uses a separate credential row, authenticated encryption with
+  operator-managed key IDs, owner rotation/revocation, and a tenant-bound auth
+  path; it deliberately does not activate per-bot webhooks or billing.
 - **Accept soft quota races and reconcile only at confirm**: rejected. Reserve at
   intent creation and serialize tenant accounting.
 - **AGPL plus an unspecified hosted exception prevents rehosting**: rejected as

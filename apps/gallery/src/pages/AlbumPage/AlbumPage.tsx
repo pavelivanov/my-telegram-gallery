@@ -27,7 +27,8 @@ function preloadImage(src: string): Promise<void> {
 export const AlbumPage: FC = () => {
   const { id = '' } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const { config, learnTenant, tenantKey, tenantSlug } = useGalleryWorkspace();
+  const { config, learnTenant, presentation, tenantKey, tenantSlug } =
+    useGalleryWorkspace();
   const { data: album, error } = useQuery({
     queryKey: ['tenant', tenantKey, 'albums', id],
     queryFn: () =>
@@ -39,7 +40,7 @@ export const AlbumPage: FC = () => {
   const [reportResult, setReportResult] = useState<string | null>(null);
 
   // Deep link into this album (handled by StartParamRedirect on launch).
-  const shareLink = buildGalleryAlbumLink(config, id);
+  const shareLink = buildGalleryAlbumLink(config, id, presentation.bot);
 
   useEffect(() => {
     if (!album || tenantSlug === album.tenantSlug) return;

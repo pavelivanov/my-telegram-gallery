@@ -11,8 +11,8 @@ lives at `/admin/`, and the NestJS API at `/api/`.
 Gallery administration remains Telegram-only: signed Telegram Mini App init
 data is the authentication boundary. Ordinary browsers see the product landing
 page unless an owner explicitly creates an opaque, revocable gallery link.
-Standalone browser accounts, ownership transfer, and bring-your-own bots are
-not supported. Multi mode supports owner-managed collaborator administrators
+Standalone browser accounts and ownership transfer are not supported. Multi
+mode supports optional owner-connected white-label bots and owner-managed collaborator administrators
 for gallery content and presentation, without billing, publication, or
 ownership authority.
 Every gallery can use one of three built-in visual presets; arbitrary CSS,
@@ -27,8 +27,10 @@ fonts, and theme assets are intentionally unsupported.
 | Filesystem or S3 | Original images and generated variants |
 | Caddy | Public HTTP/HTTPS and automatic certificates |
 
-Both Mini Apps use the same Telegram bot. The API validates signed Telegram init
-data for all protected routes. In the default `single` mode it checks
+Both Mini Apps use the same service bot by default. In multi mode, an owner may
+connect a tenant bot whose token is verified, encrypted at rest, and bound to
+that tenant's init data; tenant bot webhooks and billing remain deferred. The
+API validates signed Telegram init data for all protected routes. In the default `single` mode it checks
 `ADMIN_TG_IDS` for writes; in `multi` mode it checks database-backed tenant
 owner/admin memberships and scopes every album, photo, intent, object key, and
 media URL.
@@ -45,6 +47,7 @@ tokens, administrator IDs, storage credentials, paths, or signing secrets.
 | Transfers | Same-origin proxy; direct S3 transfer for reviewed hosted setups |
 | Tenancy | `single` for self-hosting; `multi` for the not-yet-launched SaaS |
 | Browser sharing | Owner-enabled opaque links; private/Telegram-only by default |
+| Bot identity | Shared service bot; optional encrypted tenant bot in `multi` mode |
 | Edge/TLS | Docker Compose with Caddy; source-built one-service Railway escape hatch |
 
 ## Self-host in about 15 minutes
@@ -70,6 +73,8 @@ in [docs/self-hosting.md](docs/self-hosting.md). **Create and verify a backup
 before every upgrade.** Read
 [docs/upgrading.md](docs/upgrading.md) before updating a live installation.
 See [docs/tenancy.md](docs/tenancy.md) before enabling multi mode.
+Tenant-bot setup, encryption-key rotation, and recovery are documented in
+[docs/tenant-bots.md](docs/tenant-bots.md).
 Hosted operators should also read [docs/operations.md](docs/operations.md),
 [docs/backups.md](docs/backups.md), [docs/abuse.md](docs/abuse.md), and the
 [Telegram Stars billing runbook](docs/billing.md).
@@ -139,6 +144,7 @@ Important public operational routes:
 | `GET /api/tenants/presentation` | Active gallery name and built-in visual preset |
 | `PUT /api/tenants/:slug/theme` | Owner/admin selection of a built-in visual preset |
 | `GET/POST/DELETE /api/tenants/:slug/public-share` | Owner-only browser-link controls |
+| `GET/PUT/DELETE /api/tenants/:slug/bot` | Owner-only tenant-bot verification, rotation, and revocation |
 | `GET/POST /api/tenants/:slug/members` | Owner-only collaborator management |
 | `DELETE /api/tenants/:slug/members/:tgUserId` | Owner-only collaborator revocation |
 | `POST /api/reports` | Rate-limited gallery abuse report intake |
@@ -150,7 +156,7 @@ Important public operational routes:
 Album and upload routes require `Authorization: tma <initDataRaw>`; mutations
 require an env administrator in single mode or the selected tenant's owner/admin
 membership in multi mode. Billing, collaborator management, and browser
-publication remain owner-only.
+publication and tenant-bot credentials remain owner-only.
 Theme writes accept only the server-defined `NOCTURNE`, `PAPER`, or `MOSS`
 values and are serialized with other tenant mutations.
 Public links use random 192-bit identifiers, can be revoked immediately, hide

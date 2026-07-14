@@ -1,6 +1,7 @@
 import type { Event, NodeOptions } from '@sentry/nestjs';
 import {
   ERROR_SECRET_ENV_KEYS,
+  isSensitiveFieldName,
   redactSensitiveText,
 } from '../security/redaction';
 
@@ -48,7 +49,9 @@ function scrubValue(
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      scrubValue(item, secretValues, seen),
+      isSensitiveFieldName(key)
+        ? '[REDACTED]'
+        : scrubValue(item, secretValues, seen),
     ]),
   );
 }

@@ -19,12 +19,13 @@ import {
   getPublicConfig,
   type PublicConfig,
 } from '@/api/publicConfig';
-import type { Tenant } from '@/api/types';
+import type { Tenant, TenantBotIdentity } from '@/api/types';
 import { Button, Placeholder, Spinner } from './Ui';
 
 interface TenantWorkspaceValue {
   selected: Tenant;
   tenants: Tenant[];
+  updateSelectedBot: (bot: TenantBotIdentity | null) => void;
 }
 
 const TenantWorkspaceContext = createContext<TenantWorkspaceValue | null>(
@@ -189,7 +190,7 @@ function TenantNavigation({
   selected: Tenant;
   tenants: Tenant[];
 }) {
-  const homeLink = buildGalleryHomeLink(config, selected.slug);
+  const homeLink = buildGalleryHomeLink(config, selected.slug, selected.bot);
   const storageCommitted = committedStorage(selected);
 
   return (
@@ -309,6 +310,17 @@ export function TenantWorkspace({ children }: PropsWithChildren) {
     [navigate],
   );
 
+  const updateSelectedBot = useCallback(
+    (bot: TenantBotIdentity | null) => {
+      setTenants((current) =>
+        current?.map((tenant) =>
+          tenant.slug === selectedSlug ? { ...tenant, bot } : tenant,
+        ) ?? current,
+      );
+    },
+    [selectedSlug],
+  );
+
   if (error) {
     return <Placeholder header="Could not load galleries" description={error} />;
   }
@@ -355,7 +367,9 @@ export function TenantWorkspace({ children }: PropsWithChildren) {
   }
 
   return (
-    <TenantWorkspaceContext.Provider value={{ selected, tenants: tenants ?? [] }}>
+    <TenantWorkspaceContext.Provider
+      value={{ selected, tenants: tenants ?? [], updateSelectedBot }}
+    >
       <TenantNavigation
         config={config}
         onCreate={() => setCreating(true)}

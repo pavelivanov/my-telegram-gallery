@@ -20,6 +20,7 @@ import {
 import type { AlbumDetail, Photo } from '@/api/types';
 import { confirmPhoto, stagePhoto } from '@/api/uploads';
 import { Page } from '@/components/Page';
+import { useTenantWorkspace } from '@/components/TenantWorkspace';
 import { Button, Placeholder, Spinner } from '@/components/Ui';
 
 interface PendingUpload {
@@ -131,10 +132,11 @@ export const AlbumPage: FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const publicConfig = usePublicConfig();
+  const workspace = useTenantWorkspace();
 
   // Gallery deep link: t.me Mini App link with the album as start param.
   const shareLink = publicConfig
-    ? buildGalleryAlbumLink(publicConfig, id)
+    ? buildGalleryAlbumLink(publicConfig, id, workspace?.selected.bot)
     : null;
 
   const copyLink = async () => {

@@ -107,12 +107,28 @@ export class PublicGalleriesService {
         slug: true,
         status: true,
         theme: true,
+        botCredential: {
+          select: {
+            username: true,
+            adminAppShortName: true,
+            galleryAppShortName: true,
+            verifiedAt: true,
+          },
+        },
       },
     });
     if (!tenant || tenant.status !== 'ACTIVE') {
       throw new NotFoundException('Gallery not found');
     }
-    return { ...tenant, mode: this.mode };
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      status: tenant.status,
+      theme: tenant.theme,
+      mode: this.mode,
+      bot: tenant.botCredential,
+    };
   }
 
   private serializeGallery(context: TenantContext) {
@@ -120,6 +136,7 @@ export class PublicGalleriesService {
       name: context.name,
       telegramSlug: context.slug,
       theme: context.theme.toLowerCase(),
+      bot: context.bot,
     };
   }
 }

@@ -23,6 +23,7 @@ import { PhotosService } from './photos.service';
 
 const now = new Date();
 const tenant: TenantContext = {
+  bot: null,
   id: 'tenant-1',
   mode: 'multi',
   name: 'Tenant one',

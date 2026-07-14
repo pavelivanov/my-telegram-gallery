@@ -35,6 +35,8 @@ The API is deployed only as part of the root application image. See the root
 [README](../../README.md), [self-hosting guide](../../docs/self-hosting.md),
 [operations guide](../../docs/operations.md), and
 [billing runbook](../../docs/billing.md) for supported configuration and
-deployment procedures. Optional Sentry error capture is initialized before
+deployment procedures. Optional multi-mode tenant bot credentials and key
+rotation are covered by the [tenant-bot runbook](../../docs/tenant-bots.md).
+Optional Sentry error capture is initialized before
 NestJS only when a DSN is configured; its privacy and staging-verification
 requirements are documented in the operations guide.

@@ -11,6 +11,12 @@ export interface PublicConfig {
   uploadMaxBytes: number;
 }
 
+export interface BotLinkIdentity {
+  adminAppShortName: string;
+  galleryAppShortName: string;
+  username: string;
+}
+
 let configPromise: Promise<PublicConfig> | undefined;
 
 export function getPublicConfig(): Promise<PublicConfig> {
@@ -46,9 +52,15 @@ export function usePublicConfig(): PublicConfig | null {
 export function buildGalleryAlbumLink(
   config: PublicConfig,
   albumId: string,
+  bot?: BotLinkIdentity | null,
 ): string {
+  const identity = bot ?? {
+    username: config.botUsername,
+    adminAppShortName: config.adminAppShortName,
+    galleryAppShortName: config.galleryAppShortName,
+  };
   const link = new URL(
-    `https://t.me/${config.botUsername}/${config.galleryAppShortName}`,
+    `https://t.me/${identity.username}/${identity.galleryAppShortName}`,
   );
   link.searchParams.set('startapp', `album_${albumId}`);
   return link.toString();
@@ -57,9 +69,26 @@ export function buildGalleryAlbumLink(
 export function buildGalleryHomeLink(
   config: PublicConfig,
   tenantSlug: string,
+  bot?: BotLinkIdentity | null,
+): string {
+  const identity = bot ?? {
+    username: config.botUsername,
+    adminAppShortName: config.adminAppShortName,
+    galleryAppShortName: config.galleryAppShortName,
+  };
+  const link = new URL(
+    `https://t.me/${identity.username}/${identity.galleryAppShortName}`,
+  );
+  link.searchParams.set('startapp', `tenant_${tenantSlug}`);
+  return link.toString();
+}
+
+export function buildAdminTenantLink(
+  tenantSlug: string,
+  bot: BotLinkIdentity,
 ): string {
   const link = new URL(
-    `https://t.me/${config.botUsername}/${config.galleryAppShortName}`,
+    `https://t.me/${bot.username}/${bot.adminAppShortName}`,
   );
   link.searchParams.set('startapp', `tenant_${tenantSlug}`);
   return link.toString();

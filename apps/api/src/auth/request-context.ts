@@ -4,6 +4,8 @@ import type { TenantContext } from '../tenants/tenant-context';
 
 export interface TgAuthContext {
   authDate: number;
+  /** Present only when init data was verified with a tenant-owned bot token. */
+  botTenantId?: string;
   startParam?: string;
   user: TgUser;
 }

@@ -30,7 +30,15 @@ export interface AlbumDetail {
 
 export type GalleryTheme = 'nocturne' | 'paper' | 'moss';
 
+export interface TenantBotIdentity {
+  adminAppShortName: string;
+  galleryAppShortName: string;
+  username: string;
+  verifiedAt: string;
+}
+
 export interface Tenant {
+  bot: TenantBotIdentity | null;
   name: string;
   openReportCount: number;
   plan: string;
@@ -48,6 +56,12 @@ export interface Tenant {
     storageReservedBytes: string;
     storageUsedBytes: string;
   };
+}
+
+export interface TenantBotState {
+  configured: boolean;
+  connected: boolean;
+  bot: TenantBotIdentity | null;
 }
 
 export interface TenantMember {

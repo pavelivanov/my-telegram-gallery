@@ -1,12 +1,21 @@
 export type GalleryTheme = 'nocturne' | 'paper' | 'moss';
 
+export interface TenantBotIdentity {
+  adminAppShortName: string;
+  galleryAppShortName: string;
+  username: string;
+  verifiedAt: string;
+}
+
 export interface GalleryPresentation {
+  bot: TenantBotIdentity | null;
   name: string;
   slug: string;
   theme: GalleryTheme;
 }
 
 export interface PublicGalleryInfo {
+  bot: TenantBotIdentity | null;
   name: string;
   telegramSlug: string;
   theme: GalleryTheme;

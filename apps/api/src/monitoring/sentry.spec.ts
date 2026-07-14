@@ -54,6 +54,8 @@ describe('Sentry monitoring', () => {
       breadcrumbs: [{ message: 'private-navigation-detail' }],
       extra: {
         nested: `${configuredSecret} telegram_payment_charge_id=charge-secret`,
+        botToken: 'structured-bot-secret',
+        TENANT_BOT_ENCRYPTION_KEYS: 'structured-key-secret',
       },
     };
 
@@ -77,6 +79,8 @@ describe('Sentry monitoring', () => {
       'raw-telegram-secret',
       'telegram-user-123',
       'private-navigation-detail',
+      'structured-bot-secret',
+      'structured-key-secret',
     ]) {
       expect(serialized).not.toContain(secret);
     }

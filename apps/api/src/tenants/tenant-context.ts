@@ -3,6 +3,12 @@ import type { GalleryTheme, TenantStatus } from '../../generated/prisma/client';
 import type { TenancyMode } from '../config/env';
 
 export interface TenantContext {
+  bot: {
+    adminAppShortName: string;
+    galleryAppShortName: string;
+    username: string;
+    verifiedAt: Date;
+  } | null;
   id: string;
   mode: TenancyMode;
   name: string;

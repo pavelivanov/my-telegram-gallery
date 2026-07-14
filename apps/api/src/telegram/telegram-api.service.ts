@@ -10,6 +10,12 @@ interface BotApiResponse<T> {
   result?: T;
 }
 
+interface TelegramBotIdentity {
+  id: number;
+  is_bot: boolean;
+  username?: string;
+}
+
 export class TelegramApiError extends Error {
   constructor(
     readonly method: string,
@@ -114,7 +120,38 @@ export class TelegramApiService {
     });
   }
 
+  async verifyBotToken(token: string): Promise<{
+    id: bigint;
+    username: string;
+  }> {
+    const result = await this.callAtBase<TelegramBotIdentity>(
+      `https://api.telegram.org/bot${token}`,
+      'getMe',
+      {},
+    );
+    if (
+      !result.is_bot ||
+      !Number.isSafeInteger(result.id) ||
+      result.id <= 0 ||
+      !result.username ||
+      !/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(result.username) ||
+      !result.username.toLowerCase().endsWith('bot')
+    ) {
+      throw new TelegramApiError('getMe', false, 200);
+    }
+    return { id: BigInt(result.id), username: result.username };
+  }
+
   private async call<T>(
+    method: string,
+    body: Record<string, unknown>,
+    timeoutOverrideMs?: number,
+  ): Promise<T> {
+    return this.callAtBase(this.baseUrl, method, body, timeoutOverrideMs);
+  }
+
+  private async callAtBase<T>(
+    baseUrl: string,
     method: string,
     body: Record<string, unknown>,
     timeoutOverrideMs?: number,
@@ -125,7 +162,7 @@ export class TelegramApiService {
     );
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/${method}`, {
+      response = await fetch(`${baseUrl}/${method}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

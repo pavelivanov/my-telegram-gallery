@@ -11,6 +11,12 @@ export interface PublicConfig {
   uploadMaxBytes: number;
 }
 
+export interface BotLinkIdentity {
+  adminAppShortName: string;
+  galleryAppShortName: string;
+  username: string;
+}
+
 let configPromise: Promise<PublicConfig> | undefined;
 
 interface PublicConfigState {
@@ -60,11 +66,12 @@ export function usePublicConfig(): PublicConfig | null {
 export function buildGalleryAlbumLink(
   config: PublicConfig,
   albumId: string,
+  bot?: BotLinkIdentity | null,
 ): string {
   if (!/^[A-Za-z0-9_-]{1,57}$/.test(albumId)) {
     throw new Error('Album ID cannot be used in a Telegram start parameter');
   }
-  return buildGalleryStartLink(config, `album_${albumId}`);
+  return buildGalleryStartLink(config, `album_${albumId}`, bot);
 }
 
 export function buildAdminHomeLink(config: PublicConfig): string {
@@ -76,8 +83,9 @@ export function buildAdminHomeLink(config: PublicConfig): string {
 export function buildGalleryHomeLink(
   config: PublicConfig,
   tenantSlug: string,
+  bot?: BotLinkIdentity | null,
 ): string {
-  if (config.tenancyMode === 'single') {
+  if (config.tenancyMode === 'single' && !bot) {
     return new URL(
       `https://t.me/${config.botUsername}/${config.galleryAppShortName}`,
     ).toString();
@@ -85,15 +93,24 @@ export function buildGalleryHomeLink(
   if (!/^[a-z0-9][a-z0-9_]{2,29}$/.test(tenantSlug)) {
     throw new Error('Tenant slug cannot be used in a Telegram start parameter');
   }
-  return buildGalleryStartLink(config, `tenant_${tenantSlug}`);
+  return buildGalleryStartLink(config, `tenant_${tenantSlug}`, bot);
 }
 
-function buildGalleryStartLink(config: PublicConfig, startParam: string): string {
+function buildGalleryStartLink(
+  config: PublicConfig,
+  startParam: string,
+  bot?: BotLinkIdentity | null,
+): string {
   if (!/^[\x20-\x7E]+$/.test(startParam) || startParam.length >= 64) {
     throw new Error('Telegram start parameter must be fewer than 64 ASCII characters');
   }
+  const identity = bot ?? {
+    username: config.botUsername,
+    adminAppShortName: config.adminAppShortName,
+    galleryAppShortName: config.galleryAppShortName,
+  };
   const link = new URL(
-    `https://t.me/${config.botUsername}/${config.galleryAppShortName}`,
+    `https://t.me/${identity.username}/${identity.galleryAppShortName}`,
   );
   link.searchParams.set('startapp', startParam);
   return link.toString();

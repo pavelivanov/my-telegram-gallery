@@ -32,7 +32,7 @@ function TelegramLink({ gallery }: { gallery: PublicGalleryInfo }) {
   return (
     <a
       className="public-action"
-      href={buildGalleryHomeLink(config, gallery.telegramSlug)}
+      href={buildGalleryHomeLink(config, gallery.telegramSlug, gallery.bot)}
       rel="noreferrer"
       target="_blank"
     >

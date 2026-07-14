@@ -20,6 +20,7 @@ vi.mock('@/components/Page', () => ({
 }));
 
 const tenant: Tenant = {
+  bot: null,
   name: 'Alpha gallery',
   openReportCount: 0,
   plan: 'free',

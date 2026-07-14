@@ -19,6 +19,11 @@ export type StorageDriver = 'filesystem' | 's3';
 export type StorageTransferMode = 'proxy' | 'direct';
 export type TenancyMode = 'single' | 'multi';
 
+export interface TenantBotEncryptionKey {
+  id: string;
+  key: Buffer;
+}
+
 export interface AppEnvironment {
   DATABASE_URL: string;
   TELEGRAM_BOT_TOKEN: string;
@@ -31,6 +36,7 @@ export interface AppEnvironment {
   TELEGRAM_BOT_API_TIMEOUT_MS: number;
   ADMIN_TG_IDS: string[];
   TENANCY_MODE: TenancyMode;
+  TENANT_BOT_ENCRYPTION_KEYS: TenantBotEncryptionKey[];
   TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: number;
   WEB_ORIGINS: string[];
   STORAGE_DRIVER: StorageDriver;
@@ -194,6 +200,43 @@ function parseTenancyMode(
     return 'single';
   }
   return value;
+}
+
+function parseTenantBotEncryptionKeys(
+  config: RawEnvironment,
+  errors: string[],
+): TenantBotEncryptionKey[] {
+  const raw = readString(config, 'TENANT_BOT_ENCRYPTION_KEYS');
+  if (!raw) return [];
+
+  const parsed: TenantBotEncryptionKey[] = [];
+  const ids = new Set<string>();
+  for (const entry of raw.split(',').map((value) => value.trim())) {
+    const match = /^([A-Za-z0-9_-]{1,32}):([A-Za-z0-9_-]{43})$/.exec(entry);
+    if (!match) {
+      errors.push(
+        'TENANT_BOT_ENCRYPTION_KEYS must contain comma-separated keyId:base64url-32-byte-key entries',
+      );
+      continue;
+    }
+    const [, id, encoded] = match;
+    if (ids.has(id)) {
+      errors.push(
+        `TENANT_BOT_ENCRYPTION_KEYS contains duplicate key ID: ${id}`,
+      );
+      continue;
+    }
+    const key = Buffer.from(encoded, 'base64url');
+    if (key.length !== 32 || key.toString('base64url') !== encoded) {
+      errors.push(
+        `TENANT_BOT_ENCRYPTION_KEYS key ${id} must decode to exactly 32 bytes`,
+      );
+      continue;
+    }
+    ids.add(id);
+    parsed.push({ id, key });
+  }
+  return parsed;
 }
 
 function parseInteger(
@@ -525,6 +568,7 @@ export function validateEnv(
     errors,
   );
   const tenancyMode = parseTenancyMode(config, errors);
+  const tenantBotEncryptionKeys = parseTenantBotEncryptionKeys(config, errors);
   const adminIds = parseAdminIds(config, errors, tenancyMode === 'single');
   const initDataMaxAge = parseInteger(
     config,
@@ -718,6 +762,7 @@ export function validateEnv(
     TELEGRAM_BOT_API_TIMEOUT_MS: telegramBotApiTimeout,
     ADMIN_TG_IDS: adminIds,
     TENANCY_MODE: tenancyMode,
+    TENANT_BOT_ENCRYPTION_KEYS: tenantBotEncryptionKeys,
     TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: initDataMaxAge,
     WEB_ORIGINS: webOrigins,
     ...storage,
