@@ -68,6 +68,18 @@ identifiers.
   findings, and zero high/critical findings. This follow-up record changes only
   documentation; the eventual release revision and independent
   production-shaped drill still require their own evidence.
+- A maintenance-enabled private `0.1.0-rc.local.2` candidate for implementation
+  revision `74b06d7710c18d0fba4765cdc6c672bff719e385` passed the same complete
+  native `linux/arm64` pipeline after the scheduled-maintenance runner landed.
+  Gitleaks checked all 51 commits and the saved image archive with zero
+  findings. The candidate contained 912 SBOM components; Grype reported three
+  medium findings and zero high/critical findings. A separately invoked
+  evidence verification checked every checksum and unsigned provenance field,
+  reloaded the immutable image, and repeated the restart, backup, fresh-volume
+  restore, writeability, zero-drift reconciliation, and final-restart lifecycle.
+  The artifact remains local, ignored, unsigned, and unpublished. This
+  follow-up record changes only documentation, so an eventual release revision
+  still requires fresh evidence and the independent external gates below.
 - The gallery bundle now distinguishes a verified Telegram Mini App environment
   from an ordinary browser. Browser visitors receive a responsive, data-free
   product landing page with runtime-derived Telegram and optional legal links;
