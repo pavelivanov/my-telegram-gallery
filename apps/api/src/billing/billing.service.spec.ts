@@ -30,6 +30,9 @@ function setup() {
       findUnique: jest.fn(),
       updateMany: jest.fn(),
     },
+    subscription: {
+      findMany: jest.fn(),
+    },
   };
   const quota = {
     withTenantLock: jest.fn(),
@@ -122,5 +125,42 @@ describe('BillingService pre-checkout deadlines', () => {
       expect.objectContaining({ id: query.id, ok: false }),
       { timeoutMs: 4000 },
     );
+  });
+});
+
+describe('BillingService maintenance selection', () => {
+  const selectionTime = new Date('2026-07-15T08:00:00.000Z');
+
+  beforeEach(() => jest.useFakeTimers({ now: selectionTime }));
+  afterEach(() => jest.useRealTimers());
+
+  it('selects only expired active periods and due grace periods', async () => {
+    const { prisma, service } = setup();
+    prisma.subscription.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.expire({ dryRun: true, limit: 25 }),
+    ).resolves.toMatchObject({ incomplete: false, processed: 0 });
+
+    expect(prisma.subscription.findMany).toHaveBeenCalledWith({
+      include: { tenant: { select: { slug: true } } },
+      orderBy: [{ currentPeriodEnd: 'asc' }, { id: 'asc' }],
+      take: 26,
+      where: {
+        OR: [
+          {
+            currentPeriodEnd: { lte: selectionTime },
+            status: 'ACTIVE',
+          },
+          {
+            OR: [
+              { graceEndsAt: null },
+              { graceEndsAt: { lte: selectionTime } },
+            ],
+            status: 'GRACE',
+          },
+        ],
+      },
+    });
   });
 });

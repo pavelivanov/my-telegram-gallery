@@ -25,6 +25,7 @@
     "usage:reconcile": "pnpm --filter api build && pnpm --filter api usage:reconcile",
     "billing:expire": "pnpm --filter api build && pnpm --filter api billing:expire",
     "billing:reconcile": "pnpm --filter api build && pnpm --filter api billing:reconcile",
+    "maintenance:run": "pnpm --filter api build && pnpm --filter api maintenance:run",
     "telegram:webhook": "pnpm --filter api build && pnpm --filter api telegram:webhook",
     "ops": "pnpm --filter api build && pnpm --filter api ops",
     "release:candidate": "bash scripts/release-candidate.sh",

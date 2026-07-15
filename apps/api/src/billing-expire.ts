@@ -15,6 +15,7 @@ async function expireBilling(): Promise<void> {
       tenantSlug: options.tenantSlug,
     });
     console.info(JSON.stringify(result));
+    if (result.incomplete) process.exitCode = 2;
   } finally {
     await app.close();
   }

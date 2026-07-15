@@ -33,7 +33,7 @@ async function reconcileBilling(): Promise<void> {
       .get(BillingService)
       .reconcile(options.limit, options.tenantSlug);
     console.info(JSON.stringify(result));
-    if (result.discrepancies > 0) process.exitCode = 2;
+    if (result.discrepancies > 0 || result.incomplete) process.exitCode = 2;
   } finally {
     await app.close();
   }

@@ -6,9 +6,9 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import sharp from 'sharp';
 import {
+  Prisma,
   TenantPlan,
   TenantRole,
-  type Prisma,
   type Tenant,
 } from '../generated/prisma/client';
 import { AppModule } from '../src/app.module';
@@ -21,6 +21,10 @@ import { OpsService } from '../src/ops/ops.service';
 import { QuotaService } from '../src/quota/quota.service';
 import { UsageService } from '../src/usage/usage.service';
 import { BillingService } from '../src/billing/billing.service';
+import {
+  MaintenanceService,
+  SCHEDULED_MAINTENANCE_LOCK_NAME,
+} from '../src/maintenance/maintenance.service';
 import {
   TelegramApiError,
   TelegramApiService,
@@ -1513,6 +1517,41 @@ describe('Tenant isolation (e2e)', () => {
       .expect(401);
   });
 
+  it('skips scheduled maintenance while another process holds its database lock', async () => {
+    let markAcquired!: () => void;
+    let release!: () => void;
+    const acquired = new Promise<void>((resolve) => {
+      markAcquired = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const blocker = prisma.$transaction(
+      async (transaction) => {
+        await transaction.$queryRaw<Array<{ acquired: number }>>(
+          Prisma.sql`SELECT 1::int AS acquired FROM pg_advisory_xact_lock(hashtextextended(${SCHEDULED_MAINTENANCE_LOCK_NAME}, 0))`,
+        );
+        markAcquired();
+        await released;
+      },
+      { timeout: 10_000 },
+    );
+    await acquired;
+
+    try {
+      await expect(
+        app.get(MaintenanceService).run('uploads', 10),
+      ).resolves.toEqual({
+        kind: 'uploads',
+        reason: 'already_running',
+        status: 'skipped',
+      });
+    } finally {
+      release();
+      await blocker;
+    }
+  }, 10_000);
+
   afterAll(async () => {
     await app?.close();
   });
@@ -2015,6 +2054,7 @@ describe('Telegram Stars billing (e2e)', () => {
       data: {
         status: 'GRACE',
         currentPeriodEnd: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+        graceEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
       },
     });
     const latestStoredPeriod = await prisma.billingPayment.aggregate({

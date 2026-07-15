@@ -97,6 +97,8 @@ pnpm --filter api billing:expire --apply --limit 1000
 pnpm --filter api billing:expire --apply --limit 1000
 pnpm --filter api billing:reconcile --limit 1000
 pnpm --filter api usage:reconcile --apply --limit 1000
+pnpm --filter api maintenance:run uploads --limit 1000
+pnpm --filter api maintenance:run hourly --limit 1000
 
 export OPS_TOKEN="e2e-operator-token"
 export OPS_TOKEN_SHA256

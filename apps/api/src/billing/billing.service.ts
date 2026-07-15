@@ -641,23 +641,37 @@ export class BillingService {
   }
 
   async expire(options: ExpiryOptions) {
+    const selectionTime = new Date();
     const candidates = await this.prisma.subscription.findMany({
       where: {
-        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.GRACE] },
-        currentPeriodEnd: { lte: new Date() },
+        OR: [
+          {
+            status: SubscriptionStatus.ACTIVE,
+            currentPeriodEnd: { lte: selectionTime },
+          },
+          {
+            status: SubscriptionStatus.GRACE,
+            OR: [
+              { graceEndsAt: null },
+              { graceEndsAt: { lte: selectionTime } },
+            ],
+          },
+        ],
         ...(options.tenantSlug ? { tenant: { slug: options.tenantSlug } } : {}),
       },
       orderBy: [{ currentPeriodEnd: 'asc' }, { id: 'asc' }],
-      take: options.limit,
+      take: options.limit + 1,
       include: { tenant: { select: { slug: true } } },
     });
+    const incomplete = candidates.length > options.limit;
+    const boundedCandidates = candidates.slice(0, options.limit);
     const results: Array<{
       action: 'downgrade' | 'enter_grace' | 'skipped';
       applied: boolean;
       subscriptionId: string;
       tenantSlug: string;
     }> = [];
-    for (const candidate of candidates) {
+    for (const candidate of boundedCandidates) {
       const now = new Date();
       const graceEndsAt = new Date(
         candidate.currentPeriodEnd.getTime() + PAID_PLAN_GRACE_DAYS * DAY_MS,
@@ -737,7 +751,8 @@ export class BillingService {
     }
     return {
       mode: options.dryRun ? 'dry-run' : 'apply',
-      processed: candidates.length,
+      processed: boundedCandidates.length,
+      incomplete,
       applied: results.filter((result) => result.applied).length,
       results,
     };
@@ -747,7 +762,7 @@ export class BillingService {
     const subscriptions = await this.prisma.subscription.findMany({
       where: tenantSlug ? { tenant: { slug: tenantSlug } } : undefined,
       orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
-      take: limit,
+      take: limit + 1,
       include: {
         tenant: { select: { plan: true, slug: true } },
         payments: {
@@ -757,7 +772,9 @@ export class BillingService {
         },
       },
     });
-    const results = subscriptions.map((subscription) => {
+    const incomplete = subscriptions.length > limit;
+    const boundedSubscriptions = subscriptions.slice(0, limit);
+    const results = boundedSubscriptions.map((subscription) => {
       const issues: string[] = [];
       const latestPayment = subscription.payments[0];
       if (
@@ -787,7 +804,8 @@ export class BillingService {
       };
     });
     return {
-      processed: subscriptions.length,
+      processed: boundedSubscriptions.length,
+      incomplete,
       discrepancies: results.filter((result) => result.manualReview).length,
       results,
     };

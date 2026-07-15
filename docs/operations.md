@@ -29,9 +29,21 @@ to zero.
 
 ## Scheduled bounded jobs
 
-The commands require an explicit mode, accept `--tenant SLUG`, and cap work with
-`--limit`. They never run as in-process timers, so adding a replica cannot
-silently duplicate schedules.
+The individual commands require an explicit mode, accept `--tenant SLUG`, and
+cap work with `--limit`. The application never runs an in-process timer. For
+production scheduling, the repository also provides two finite composite
+cycles:
+
+```bash
+node dist/src/maintenance-run uploads --limit 500
+node dist/src/maintenance-run hourly --limit 500
+```
+
+`uploads` applies bounded stale-upload cleanup. `hourly` applies billing expiry,
+runs read-only billing reconciliation, and performs read-only usage checks. It
+never applies usage drift automatically. Both cycles hold the same PostgreSQL
+advisory lock for their complete execution, so separate hosts or cron services
+cannot overlap. A crashed process releases the lock with its database session.
 
 Preview candidates without changing storage or counters:
 
@@ -70,9 +82,29 @@ Recommended launch schedules:
 - billing reconciliation every hour and after webhook/payment incidents;
 - a deliberate usage `--apply` only after an operator reviews the drift event.
 
-Use host cron with `flock` for Compose or one Railway cron service per command.
-Do not add an application timer. Job output contains tenant/object record IDs and
-event types, never init data, signed URLs, credentials, or object contents.
+For Compose, `scripts/run-maintenance.sh` adds a host `flock` when available and
+then executes the database-locked cycle inside the running app container. From
+the checked-out deployment directory, install these entries in the host
+crontab, adjusting the absolute path:
+
+```cron
+*/15 * * * * cd /opt/my-telegram-gallery && scripts/run-maintenance.sh uploads
+7 * * * * cd /opt/my-telegram-gallery && scripts/run-maintenance.sh hourly
+```
+
+The stagger keeps the hourly cycle away from the quarter-hour upload cycle.
+Set `MAINTENANCE_LIMIT` only after measuring a staging run. On Railway, create
+two non-public cron services from the same reviewed image as described in
+[railway.md](railway.md#scheduled-maintenance-services).
+
+Every composite run emits one JSON summary and closes its Nest/PostgreSQL
+resources. Exit `0` means clean completion, `2` means the run completed but
+found failures, discrepancies, drift, or a limit-truncated scan requiring
+review, `75` means an overlap lock was held, and `1` means the cycle failed.
+Increase the measured limit or split the workload until scheduled runs are not
+truncated. Alert on every nonzero exit and on a missing expected run. Job output
+contains tenant/object record IDs and event types, never init data, signed URLs,
+credentials, or object contents.
 
 ## Request IDs and logs
 
@@ -207,6 +239,9 @@ cannot inspect reporter detail or resolve reports.
       identity, or seeded-secret data; otherwise the DSN remains empty.
 - [ ] `TRUST_PROXY_HOPS` matches the observed topology.
 - [ ] Exactly one app replica is configured while throttling is in memory.
+- [ ] The 15-minute upload and staggered hourly maintenance schedules both
+      produce clean JSON summaries; overlap, attention, failure, and missing-run
+      exits reach the approved alert channel.
 - [ ] A private beta sets `TENANT_CREATION_MODE=allowlist`, its approved IDs are
       reviewed, and an unlisted Telegram user cannot create a gallery while
       retaining access to galleries where they are already a collaborator.

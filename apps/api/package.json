@@ -18,6 +18,7 @@
     "usage:reconcile": "node dist/src/usage-reconcile",
     "billing:expire": "node dist/src/billing-expire",
     "billing:reconcile": "node dist/src/billing-reconcile",
+    "maintenance:run": "node dist/src/maintenance-run",
     "telegram:webhook": "node dist/src/telegram-webhook-cli",
     "ops": "node dist/src/ops-cli",
     "tenant:bootstrap": "node dist/src/tenant-bootstrap",

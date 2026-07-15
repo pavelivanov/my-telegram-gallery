@@ -168,6 +168,11 @@ Uploads use a server-created intent,
 then either a same-origin proxy PUT or presigned S3 PUT, followed by confirmation
 with the intent ID. Clients never choose or receive raw storage keys.
 
+Production operators can schedule the finite `maintenance:run` CLI for bounded
+upload cleanup, billing expiry/reconciliation, and read-only usage checks. It
+uses a PostgreSQL advisory lock across processes and never starts an in-process
+timer; see [docs/operations.md](docs/operations.md#scheduled-bounded-jobs).
+
 Quota admission reserves bytes before upload and commits authoritative original
 plus variant sizes at confirmation under a PostgreSQL tenant lock. Bounded
 cleanup/reconciliation and audited operator commands are documented in

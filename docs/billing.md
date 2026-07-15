@@ -113,6 +113,19 @@ pnpm billing:reconcile -- --limit 500
 pnpm billing:reconcile -- --tenant TENANT_SLUG --limit 100
 ```
 
+The production hourly cycle combines expiry, billing reconciliation, and
+read-only usage checks under one cross-process maintenance lock:
+
+```bash
+node dist/src/maintenance-run hourly --limit 500
+```
+
+The targeted commands above remain the incident/debugging interface. The
+composite cycle exits `2` on any reconciliation discrepancy, usage drift, or
+limit-truncated scan so the external scheduler can alert without parsing log
+prose. A truncated run is not a clean cycle: increase the measured limit or
+split the workload before relying on the schedule.
+
 ## Cancellation and refunds
 
 Cancellation calls `editUserStarSubscription` with the stored first charge ID

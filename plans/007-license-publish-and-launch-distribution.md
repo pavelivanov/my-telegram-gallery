@@ -48,8 +48,9 @@ publish reproducible artifacts and a Railway template.
   says it is private. Do not assume visibility without checking at release time.
 - The one-image topology, Compose self-host path, private candidate workflow,
   SBOM/evidence scripts, Stars billing implementation, private-beta admission
-  allowlist, and launch runbooks are implemented. The candidate is unsigned and
-  unpublished; final native/clean-machine acceptance is still required.
+  allowlist, cross-process scheduled-maintenance runner, and launch runbooks are
+  implemented. The candidate is unsigned and unpublished; final
+  native/clean-machine acceptance is still required.
 - `railway.json` and a one-service template runbook are prepared, but no Railway
   project or marketplace template has been created or authorized.
 - Railway's current public program (checked 2026-07-13) advertises a 15% base

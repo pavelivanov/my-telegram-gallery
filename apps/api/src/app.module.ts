@@ -26,6 +26,7 @@ import { BillingModule } from './billing/billing.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { PublicGalleriesModule } from './public-galleries/public-galleries.module';
 import { TenantBotsModule } from './tenant-bots/tenant-bots.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { TenantBotsModule } from './tenant-bots/tenant-bots.module';
     PrismaModule,
     QuotaModule,
     UsageModule,
+    MaintenanceModule,
     TelegramModule,
     TenantBotsModule,
     BillingModule,

@@ -90,9 +90,11 @@ Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reas
 - **Paid SaaS beta**: Plan 006 plus the SaaS gate in 007.
 - The BYO-bot foundation, revocable public browser galleries, bounded visual
   themes, collaborator administrators, and an explicit private-beta admission
-  allowlist are implemented locally but still require production-shaped policy
-  and client acceptance. Per-tenant webhook, command, support, and Stars routing
-  remain post-launch candidates.
+  allowlist are implemented locally. Cross-process locked 15-minute/hourly
+  maintenance cycles are also ready for external scheduling. These still
+  require production-shaped policy, scheduler/alert configuration, and client
+  acceptance. Per-tenant webhook, command, support, and Stars routing remain
+  post-launch candidates.
 
 ## Vetted findings
 

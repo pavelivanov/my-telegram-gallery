@@ -41,7 +41,8 @@ refund support, and `/paysupport` compliance.
   grace, cancellation, refund, and a barrier-controlled renewal/expiry race.
 - Remaining work is external acceptance and operation: approve the product and
   legal inputs, execute the real Telegram test-environment matrix, configure
-  production schedules/alerts/owners, and explicitly authorize activation.
+  the prepared maintenance cycles in the production scheduler and alert
+  channel, name operating owners, and explicitly authorize activation.
 
 ## Current platform constraints validated 2026-07-13
 
