@@ -18,6 +18,7 @@ const MIN_MEDIA_SIGNING_SECRET_BYTES = 32;
 export type StorageDriver = 'filesystem' | 's3';
 export type StorageTransferMode = 'proxy' | 'direct';
 export type TenancyMode = 'single' | 'multi';
+export type TenantCreationMode = 'open' | 'allowlist' | 'closed';
 
 export interface TenantBotEncryptionKey {
   id: string;
@@ -36,6 +37,8 @@ export interface AppEnvironment {
   TELEGRAM_BOT_API_TIMEOUT_MS: number;
   ADMIN_TG_IDS: string[];
   TENANCY_MODE: TenancyMode;
+  TENANT_CREATION_MODE: TenantCreationMode;
+  TENANT_CREATION_TG_IDS: string[];
   TENANT_BOT_ENCRYPTION_KEYS: TenantBotEncryptionKey[];
   TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: number;
   WEB_ORIGINS: string[];
@@ -200,6 +203,47 @@ function parseTenancyMode(
     return 'single';
   }
   return value;
+}
+
+function parseTenantCreationMode(
+  config: RawEnvironment,
+  errors: string[],
+): TenantCreationMode {
+  const value = readString(config, 'TENANT_CREATION_MODE') ?? 'open';
+  if (value !== 'open' && value !== 'allowlist' && value !== 'closed') {
+    errors.push('TENANT_CREATION_MODE must be open, allowlist, or closed');
+    return 'open';
+  }
+  return value;
+}
+
+function parseTenantCreationIds(
+  config: RawEnvironment,
+  errors: string[],
+): string[] {
+  const value = readString(config, 'TENANT_CREATION_TG_IDS');
+  if (!value) return [];
+
+  const normalized: string[] = [];
+  for (const rawId of value.split(',')) {
+    const id = rawId.trim();
+    if (!id) continue;
+    if (!/^\d+$/.test(id)) {
+      errors.push(
+        `TENANT_CREATION_TG_IDS contains a non-decimal Telegram ID: ${id}`,
+      );
+      continue;
+    }
+    const numeric = BigInt(id);
+    if (numeric <= 0n || numeric > BigInt(Number.MAX_SAFE_INTEGER)) {
+      errors.push(
+        `TENANT_CREATION_TG_IDS contains an out-of-range Telegram ID: ${id}`,
+      );
+      continue;
+    }
+    normalized.push(numeric.toString());
+  }
+  return [...new Set(normalized)];
 }
 
 function parseTenantBotEncryptionKeys(
@@ -568,6 +612,13 @@ export function validateEnv(
     errors,
   );
   const tenancyMode = parseTenancyMode(config, errors);
+  const tenantCreationMode = parseTenantCreationMode(config, errors);
+  const tenantCreationIds = parseTenantCreationIds(config, errors);
+  if (tenantCreationMode === 'allowlist' && tenantCreationIds.length === 0) {
+    errors.push(
+      'TENANT_CREATION_TG_IDS must contain at least one Telegram ID when TENANT_CREATION_MODE=allowlist',
+    );
+  }
   const tenantBotEncryptionKeys = parseTenantBotEncryptionKeys(config, errors);
   const adminIds = parseAdminIds(config, errors, tenancyMode === 'single');
   const initDataMaxAge = parseInteger(
@@ -762,6 +813,8 @@ export function validateEnv(
     TELEGRAM_BOT_API_TIMEOUT_MS: telegramBotApiTimeout,
     ADMIN_TG_IDS: adminIds,
     TENANCY_MODE: tenancyMode,
+    TENANT_CREATION_MODE: tenantCreationMode,
+    TENANT_CREATION_TG_IDS: tenantCreationIds,
     TENANT_BOT_ENCRYPTION_KEYS: tenantBotEncryptionKeys,
     TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: initDataMaxAge,
     WEB_ORIGINS: webOrigins,

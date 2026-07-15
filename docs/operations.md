@@ -207,6 +207,9 @@ cannot inspect reporter detail or resolve reports.
       identity, or seeded-secret data; otherwise the DSN remains empty.
 - [ ] `TRUST_PROXY_HOPS` matches the observed topology.
 - [ ] Exactly one app replica is configured while throttling is in memory.
+- [ ] A private beta sets `TENANT_CREATION_MODE=allowlist`, its approved IDs are
+      reviewed, and an unlisted Telegram user cannot create a gallery while
+      retaining access to galleries where they are already a collaborator.
 - [ ] Abuse contact and appeal path are published.
 - [ ] Telegram test-environment billing checklist passes with approved product
       and support inputs; the production webhook remains unset until launch.

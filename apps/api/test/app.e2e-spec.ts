@@ -5,7 +5,12 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import sharp from 'sharp';
-import { TenantPlan, TenantRole } from '../generated/prisma/client';
+import {
+  TenantPlan,
+  TenantRole,
+  type Prisma,
+  type Tenant,
+} from '../generated/prisma/client';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
 import { validateEnv } from '../src/config/env';
@@ -13,6 +18,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { getPlanPolicy } from '../src/plans/plan-policy';
 import { PhotosService } from '../src/photos/photos.service';
 import { OpsService } from '../src/ops/ops.service';
+import { QuotaService } from '../src/quota/quota.service';
 import { UsageService } from '../src/usage/usage.service';
 import { BillingService } from '../src/billing/billing.service';
 import {
@@ -368,6 +374,78 @@ interface TenantResponseBody {
     storageUsedBytes: string;
   };
 }
+
+describe('Tenant creation admission (e2e)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaService;
+
+  function authorization(userId: number): string {
+    return `tma ${createTelegramInitData({
+      botToken: process.env.TELEGRAM_BOT_TOKEN!,
+      user: { id: userId, first_name: `Beta user ${userId}` },
+    })}`;
+  }
+
+  beforeAll(async () => {
+    const environment = validateEnv({
+      ...process.env,
+      ADMIN_TG_ID: '',
+      ADMIN_TG_IDS: '',
+      TENANCY_MODE: 'multi',
+      TENANT_CREATION_MODE: 'allowlist',
+      TENANT_CREATION_TG_IDS: '601',
+    });
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(ConfigService)
+      .useValue(new ConfigService(environment))
+      .compile();
+    app = moduleRef.createNestApplication({ bodyParser: false });
+    configureApp(app);
+    await app.listen(0, '127.0.0.1');
+    prisma = app.get(PrismaService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('admits listed owners, rejects unlisted creation, and preserves membership access', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization(601))
+      .send({ name: 'Private Beta Gallery', slug: 'private_beta_gallery' })
+      .expect(201);
+    const tenant = created.body as TenantResponseBody;
+
+    await request(app.getHttpServer())
+      .post('/api/tenants')
+      .set('Authorization', authorization(602))
+      .send({ name: 'Uninvited Gallery', slug: 'uninvited_gallery' })
+      .expect(403)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          message: 'Gallery creation is limited to invited beta users',
+        });
+      });
+
+    await prisma.tenantMembership.create({
+      data: {
+        tenantId: tenant.id,
+        tgUserId: 602n,
+        role: TenantRole.ADMIN,
+      },
+    });
+    await request(app.getHttpServer())
+      .get('/api/tenants')
+      .set('Authorization', authorization(602))
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual([
+          expect.objectContaining({ id: tenant.id, role: 'admin' }),
+        ]);
+      });
+  });
+});
 
 describe('Tenant isolation (e2e)', () => {
   let app: INestApplication<App>;
@@ -1701,16 +1779,78 @@ describe('Telegram Stars billing (e2e)', () => {
   });
 
   it('answers pre-checkout on every branch and retries only transient work', async () => {
-    const valid = {
-      update_id: 9100,
-      pre_checkout_query: {
-        id: 'pre_checkout_valid',
-        from: { id: 501 },
-        currency: 'XTR',
-        total_amount: 250,
-        invoice_payload: checkoutId,
-      },
+    const validQuery = {
+      id: 'pre_checkout_valid',
+      from: { id: 501 },
+      currency: 'XTR',
+      total_amount: 250,
+      invoice_payload: checkoutId,
     };
+    const rejectQuery = async (
+      updateId: number,
+      id: string,
+      overrides: Record<string, unknown>,
+    ) => {
+      await webhook({
+        update_id: updateId,
+        pre_checkout_query: { ...validQuery, id, ...overrides },
+      })
+        .expect(200)
+        .expect({ status: 'rejected' });
+      expect(fakeTelegram.preCheckoutAnswers.at(-1)).toMatchObject({
+        id,
+        ok: false,
+      });
+    };
+
+    await rejectQuery(9060, 'pre_checkout_wrong_payer', {
+      from: { id: 502 },
+    });
+    await rejectQuery(9061, 'pre_checkout_wrong_currency', {
+      currency: 'USD',
+    });
+    await rejectQuery(9062, 'pre_checkout_wrong_amount', {
+      total_amount: 249,
+    });
+    await rejectQuery(9063, 'pre_checkout_unknown', {
+      invoice_payload: 'checkout_does_not_exist',
+    });
+
+    await prisma.billingCheckout.update({
+      where: { id: checkoutId },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+    await rejectQuery(9064, 'pre_checkout_expired', {});
+    await prisma.billingCheckout.update({
+      where: { id: checkoutId },
+      data: { expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
+    });
+
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { status: 'SUSPENDED' },
+    });
+    await rejectQuery(9065, 'pre_checkout_suspended', {});
+    await prisma.tenant.update({
+      where: { id: tenant.id },
+      data: { status: 'ACTIVE' },
+    });
+
+    await prisma.tenantMembership.update({
+      where: {
+        tenantId_tgUserId: { tenantId: tenant.id, tgUserId: 501n },
+      },
+      data: { role: TenantRole.ADMIN },
+    });
+    await rejectQuery(9066, 'pre_checkout_revoked_owner', {});
+    await prisma.tenantMembership.update({
+      where: {
+        tenantId_tgUserId: { tenantId: tenant.id, tgUserId: 501n },
+      },
+      data: { role: TenantRole.OWNER },
+    });
+
+    const valid = { update_id: 9100, pre_checkout_query: validQuery };
     fakeTelegram.failNextPreCheckout = true;
     await webhook(valid).expect(503);
     expect(
@@ -1720,9 +1860,10 @@ describe('Telegram Stars billing (e2e)', () => {
     ).toMatchObject({ status: 'RETRYABLE', attempts: 1 });
     await webhook(valid).expect(200).expect({ status: 'processed' });
     await webhook(valid).expect(200).expect({ status: 'duplicate' });
-    expect(fakeTelegram.preCheckoutAnswers).toEqual([
-      expect.objectContaining({ id: 'pre_checkout_valid', ok: true }),
-    ]);
+    expect(fakeTelegram.preCheckoutAnswers.at(-1)).toMatchObject({
+      id: 'pre_checkout_valid',
+      ok: true,
+    });
 
     await webhook({
       ...valid,
@@ -1736,23 +1877,6 @@ describe('Telegram Stars billing (e2e)', () => {
       .expect({ status: 'rejected' });
     expect(fakeTelegram.preCheckoutAnswers.at(-1)).toMatchObject({
       id: 'pre_checkout_second_purchase',
-      ok: false,
-    });
-
-    await webhook({
-      update_id: 9101,
-      pre_checkout_query: {
-        id: 'pre_checkout_wrong_amount',
-        from: { id: 501 },
-        currency: 'XTR',
-        total_amount: 249,
-        invoice_payload: checkoutId,
-      },
-    })
-      .expect(200)
-      .expect({ status: 'rejected' });
-    expect(fakeTelegram.preCheckoutAnswers.at(-1)).toMatchObject({
-      id: 'pre_checkout_wrong_amount',
       ok: false,
     });
   });
@@ -1867,7 +1991,7 @@ describe('Telegram Stars billing (e2e)', () => {
     });
   });
 
-  it('enters grace, downgrades without deletion, and accepts a later renewal', async () => {
+  it('serializes a renewal racing grace expiry without losing Pro access', async () => {
     await prisma.subscription.update({
       where: { tenantId: tenant.id },
       data: {
@@ -1893,16 +2017,6 @@ describe('Telegram Stars billing (e2e)', () => {
         currentPeriodEnd: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
       },
     });
-    await expect(
-      billing.expire({ dryRun: false, limit: 10, tenantSlug: tenant.slug }),
-    ).resolves.toMatchObject({
-      applied: 1,
-      results: [expect.objectContaining({ action: 'downgrade' })],
-    });
-    expect(
-      await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
-    ).toMatchObject({ plan: 'FREE' });
-
     const latestStoredPeriod = await prisma.billingPayment.aggregate({
       where: { tenantId: tenant.id },
       _max: { periodEnd: true },
@@ -1912,12 +2026,74 @@ describe('Telegram Stars billing (e2e)', () => {
         (latestStoredPeriod._max.periodEnd ?? new Date()).getTime() / 1000,
       ) + 2_592_000;
     latestCharge = 'billing_charge_after_grace';
-    await webhook(paymentUpdate(9400, latestCharge, renewedEnd))
-      .expect(200)
-      .expect({ status: 'processed' });
+
+    const quota = app.get(QuotaService);
+    type TenantLock = <T>(
+      tenantId: string,
+      work: (
+        transaction: Prisma.TransactionClient,
+        lockedTenant: Tenant,
+      ) => Promise<T>,
+      options?: {
+        lockTimeoutMs?: number;
+        maxWaitMs?: number;
+        timeoutMs?: number;
+      },
+    ) => Promise<T>;
+    const withTenantLock = quota.withTenantLock.bind(quota) as TenantLock;
+    let arrivals = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    quota.withTenantLock = async <T>(
+      tenantId: string,
+      work: (
+        transaction: Prisma.TransactionClient,
+        lockedTenant: Tenant,
+      ) => Promise<T>,
+      options: {
+        lockTimeoutMs?: number;
+        maxWaitMs?: number;
+        timeoutMs?: number;
+      } = {},
+    ): Promise<T> => {
+      if (tenantId === tenant.id && arrivals < 2) {
+        arrivals += 1;
+        if (arrivals === 2) release();
+        await gate;
+      }
+      return withTenantLock(tenantId, work, options);
+    };
+
+    try {
+      const [expiry, renewal] = await Promise.all([
+        billing.expire({
+          dryRun: false,
+          limit: 10,
+          tenantSlug: tenant.slug,
+        }),
+        webhook(paymentUpdate(9400, latestCharge, renewedEnd)),
+      ]);
+      expect(arrivals).toBe(2);
+      expect(expiry).toMatchObject({
+        processed: 1,
+      });
+      expect(['downgrade', 'skipped']).toContain(expiry.results[0]?.action);
+      expect(renewal.status).toBe(200);
+      expect(renewal.body as unknown).toEqual({ status: 'processed' });
+    } finally {
+      quota.withTenantLock = withTenantLock;
+    }
+
     expect(
       await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } }),
     ).toMatchObject({ plan: 'PRO' });
+    expect(
+      await prisma.subscription.findUniqueOrThrow({
+        where: { tenantId: tenant.id },
+      }),
+    ).toMatchObject({ currentPeriodEnd: new Date(renewedEnd * 1000) });
   });
 
   it('answers paysupport and applies an audited idempotent refund policy', async () => {

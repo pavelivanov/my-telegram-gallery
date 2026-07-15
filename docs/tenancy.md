@@ -30,6 +30,23 @@ gallery. Ownership transfer is not supported.
 - New media uses `tenants/<tenantId>/...`. Existing objects remain at their old
   keys and continue to work; the transition does not move media.
 
+### Multi-mode gallery admission
+
+`TENANT_CREATION_MODE` controls only `POST /api/tenants`; it never removes an
+existing owner or collaborator's access. The default, `open`, preserves normal
+multi-mode onboarding. `closed` blocks every new gallery. For a private beta,
+use an explicit numeric Telegram-user allowlist:
+
+```dotenv
+TENANT_CREATION_MODE=allowlist
+TENANT_CREATION_TG_IDS=501,502
+```
+
+Allowlist mode refuses to start when the list is empty or malformed. Changes
+take effect after the application restarts. Removing an ID prevents that user
+from creating another gallery but does not revoke existing memberships; use
+the normal collaborator or operator procedures for revocation and suspension.
+
 ## Optional tenant-owned bots
 
 When `TENANT_BOT_ENCRYPTION_KEYS` is configured, a multi-mode owner can open
@@ -151,6 +168,7 @@ Rehearse these steps on a disposable restore before production.
    ```
 
    Expect tenant `default` with status `ACTIVE` and three zero counts.
+
 4. While still in single mode, run the owner bootstrap command above twice. The
    first run should report `claimed` (or `created` on a new database); the second
    must report `unchanged`. A different owner ID must be refused.
@@ -173,7 +191,7 @@ Rehearse these steps on a disposable restore before production.
     token rotation, disconnect, and shared-bot recovery. Do not set a tenant
     bot webhook.
 11. Repeat the backup, migration, bootstrap, single-mode smoke, and multi-mode
-   enablement in production as separate observable steps.
+    enablement in production as separate observable steps.
 
 The repository E2E gate rehearses the migrations against empty and populated
 legacy schemas and runs a two-tenant owner/collaborator isolation matrix. Run it

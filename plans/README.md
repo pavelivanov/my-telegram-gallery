@@ -16,7 +16,7 @@ during code review.
 Keep:
 
 - one codebase with `TENANCY_MODE=single|multi` and single as default;
-- one shared SaaS bot for launch, with BYO-bot deferred;
+- one shared SaaS bot for launch, with tenant-bot operations deferred;
 - S3 compatibility and direct transfers for hosted scale;
 - self-host distribution before billing;
 - Telegram Stars for in-Telegram digital subscription billing;
@@ -57,15 +57,15 @@ Change:
 
 ## Execution order and status
 
-| Plan | Title | Priority | Effort | Depends on | Status |
-|---|---|---:|---:|---|---|
-| [001](001-establish-verification-config-and-auth-baseline.md) | Verification, config, and Telegram-auth baseline | P0 | M | — | DONE |
-| [002](002-add-storage-drivers-and-safe-media-flows.md) | Storage drivers and safe direct/proxy media | P0 | L | 001 | DONE |
-| [003](003-package-a-single-origin-self-hosted-edition.md) | One-image single-origin self-host edition | P0 | L | 002 | DONE |
-| [004](004-add-tenant-isolation-and-onboarding.md) | Tenant isolation and onboarding | P1 | L | 003 | DONE |
-| [005](005-enforce-quotas-abuse-controls-and-operations.md) | Quotas, abuse controls, and operations | P1 | L | 004 | DONE |
-| [006](006-add-telegram-stars-billing.md) | Telegram Stars subscriptions | P1 | L | 005 | IN PROGRESS |
-| [007](007-license-publish-and-launch-distribution.md) | License, publish, templates, and launch | P1/P2 | L | 003 self-host; 006 SaaS | IN PROGRESS |
+| Plan                                                          | Title                                            | Priority | Effort | Depends on              | Status                                 |
+| ------------------------------------------------------------- | ------------------------------------------------ | -------: | -----: | ----------------------- | -------------------------------------- |
+| [001](001-establish-verification-config-and-auth-baseline.md) | Verification, config, and Telegram-auth baseline |       P0 |      M | —                       | DONE                                   |
+| [002](002-add-storage-drivers-and-safe-media-flows.md)        | Storage drivers and safe direct/proxy media      |       P0 |      L | 001                     | DONE                                   |
+| [003](003-package-a-single-origin-self-hosted-edition.md)     | One-image single-origin self-host edition        |       P0 |      L | 002                     | DONE                                   |
+| [004](004-add-tenant-isolation-and-onboarding.md)             | Tenant isolation and onboarding                  |       P1 |      L | 003                     | DONE                                   |
+| [005](005-enforce-quotas-abuse-controls-and-operations.md)    | Quotas, abuse controls, and operations           |       P1 |      L | 004                     | DONE                                   |
+| [006](006-add-telegram-stars-billing.md)                      | Telegram Stars subscriptions                     |       P1 |      L | 005                     | IN PROGRESS (external acceptance)      |
+| [007](007-license-publish-and-launch-distribution.md)         | License, publish, templates, and launch          |    P1/P2 |      L | 003 self-host; 006 SaaS | IN PROGRESS (legal/release acceptance) |
 
 Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reason>)`.
 
@@ -89,23 +89,24 @@ Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reas
 - **Hosted private beta**: Plans 004–005 on the same image, with billing disabled.
 - **Paid SaaS beta**: Plan 006 plus the SaaS gate in 007.
 - The BYO-bot foundation, revocable public browser galleries, bounded visual
-  themes, and collaborator administrators are implemented locally but still
-  require production-shaped policy and client acceptance. Per-tenant webhook,
-  command, support, and Stars routing remain post-launch candidates.
+  themes, collaborator administrators, and an explicit private-beta admission
+  allowlist are implemented locally but still require production-shaped policy
+  and client acceptance. Per-tenant webhook, command, support, and Stars routing
+  remain post-launch candidates.
 
 ## Vetted findings
 
-| # | Finding | Category | Impact | Effort | Fix risk | Evidence |
-|---|---|---|---|---|---|---|
-| 1 | Establish one working verification gate before architecture work | Tests/DX | Current frontend lint is unusable and API behavior has almost no regression coverage | M | LOW | `package.json:5-13`; both frontend ESLint configs; `apps/api/src/app.controller.spec.ts:5-21` |
-| 2 | Reject stale/malformed Telegram init data and support multiple single-mode admins | Security | Captured valid init data has no age limit; malformed user data can become 500; one env ID blocks shared administration | S/M | LOW | `apps/api/src/auth/tg-init-data.guard.ts:33-58`; `admin.guard.ts:19-25` |
-| 3 | Replace confirm-by-client-key with a durable upload intent | Security/Correctness | Client declarations are treated as stored-object truth; future tenant/quota enforcement can be bypassed | L | MED | `photos.dto.ts:11-32`; `photos.service.ts:75-105`; `admin/src/api/uploads.ts:52-63` |
-| 4 | Proxy uploads as well as downloads and add filesystem storage | Architecture | Proposed GET-only proxy still needs bucket PUT CORS and cannot deliver a minimal local setup | L | MED | `admin/src/api/uploads.ts:39-43`; `r2.service.ts:29-39`; README bucket CORS at `146-151` |
-| 5 | Collapse production to one origin and runtime public config | Architecture/DX | Three services, build-time URLs, and CORS prevent a reusable one-image distribution | L | MED | both API clients `:3-6`; both Vite configs `base: '/'`; `main.ts:7-10`; README `114-151` |
-| 6 | Add database-enforced tenant scope and membership | Security | Every current album/photo operation is global; a tenant selector alone would create IDOR/cross-tenant mutation risk | L | HIGH | `schema.prisma:11-35`; `albums.service.ts:16-95`; `photos.service.ts:22-153` |
-| 7 | Reserve/reconcile actual stored bytes and add suspension/report operations | Security/Ops | Direct uploads and preview variants can exceed soft quotas; public SaaS lacks bounded abuse response | L | HIGH | preview variants at `photos.service.ts:35-72`; unbounded backfill at `107-129`; no current Tenant/Report models |
-| 8 | Process Stars payments as idempotent server events | Correctness/Direction | Client callbacks or duplicate webhooks could grant incorrect entitlements; cancellation/grace/refunds need durable state | L | HIGH | no current bot webhook/billing modules; one bot token only used for init-data validation |
-| 9 | Resolve license/ownership and release safety before publicity | Legal/Release | `UNLICENSED` API plus template MIT notices cannot support a clear public distribution without a reviewed choice | M/L | HIGH | `apps/api/package.json`; `apps/admin/LICENSE`; `apps/gallery/LICENSE`; no root LICENSE |
+| #   | Finding                                                                           | Category              | Impact                                                                                                                   | Effort | Fix risk | Evidence                                                                                                        |
+| --- | --------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------ | -------- | --------------------------------------------------------------------------------------------------------------- |
+| 1   | Establish one working verification gate before architecture work                  | Tests/DX              | Current frontend lint is unusable and API behavior has almost no regression coverage                                     | M      | LOW      | `package.json:5-13`; both frontend ESLint configs; `apps/api/src/app.controller.spec.ts:5-21`                   |
+| 2   | Reject stale/malformed Telegram init data and support multiple single-mode admins | Security              | Captured valid init data has no age limit; malformed user data can become 500; one env ID blocks shared administration   | S/M    | LOW      | `apps/api/src/auth/tg-init-data.guard.ts:33-58`; `admin.guard.ts:19-25`                                         |
+| 3   | Replace confirm-by-client-key with a durable upload intent                        | Security/Correctness  | Client declarations are treated as stored-object truth; future tenant/quota enforcement can be bypassed                  | L      | MED      | `photos.dto.ts:11-32`; `photos.service.ts:75-105`; `admin/src/api/uploads.ts:52-63`                             |
+| 4   | Proxy uploads as well as downloads and add filesystem storage                     | Architecture          | Proposed GET-only proxy still needs bucket PUT CORS and cannot deliver a minimal local setup                             | L      | MED      | `admin/src/api/uploads.ts:39-43`; `r2.service.ts:29-39`; README bucket CORS at `146-151`                        |
+| 5   | Collapse production to one origin and runtime public config                       | Architecture/DX       | Three services, build-time URLs, and CORS prevent a reusable one-image distribution                                      | L      | MED      | both API clients `:3-6`; both Vite configs `base: '/'`; `main.ts:7-10`; README `114-151`                        |
+| 6   | Add database-enforced tenant scope and membership                                 | Security              | Every current album/photo operation is global; a tenant selector alone would create IDOR/cross-tenant mutation risk      | L      | HIGH     | `schema.prisma:11-35`; `albums.service.ts:16-95`; `photos.service.ts:22-153`                                    |
+| 7   | Reserve/reconcile actual stored bytes and add suspension/report operations        | Security/Ops          | Direct uploads and preview variants can exceed soft quotas; public SaaS lacks bounded abuse response                     | L      | HIGH     | preview variants at `photos.service.ts:35-72`; unbounded backfill at `107-129`; no current Tenant/Report models |
+| 8   | Process Stars payments as idempotent server events                                | Correctness/Direction | Client callbacks or duplicate webhooks could grant incorrect entitlements; cancellation/grace/refunds need durable state | L      | HIGH     | no current bot webhook/billing modules; one bot token only used for init-data validation                        |
+| 9   | Resolve license/ownership and release safety before publicity                     | Legal/Release         | `UNLICENSED` API plus template MIT notices cannot support a clear public distribution without a reviewed choice          | M/L    | HIGH     | `apps/api/package.json`; `apps/admin/LICENSE`; `apps/gallery/LICENSE`; no root LICENSE                          |
 
 Effort estimates include tests and are intentionally larger than the attached
 proposal's day estimates. Tenant migration, concurrency-safe quota accounting,

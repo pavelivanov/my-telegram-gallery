@@ -51,6 +51,8 @@ describe('validateEnv', () => {
     expect(env.BILLING_PRO_PRICE_STARS).toBeUndefined();
     expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
     expect(env.TENANCY_MODE).toBe('single');
+    expect(env.TENANT_CREATION_MODE).toBe('open');
+    expect(env.TENANT_CREATION_TG_IDS).toEqual([]);
     expect(env.TENANT_BOT_ENCRYPTION_KEYS).toEqual([]);
     expect(env.SENTRY_DSN).toBeUndefined();
     expect(env.SENTRY_ENVIRONMENT).toBeUndefined();
@@ -91,6 +93,20 @@ describe('validateEnv', () => {
 
     expect(env.TENANCY_MODE).toBe('multi');
     expect(env.ADMIN_TG_IDS).toEqual([]);
+  });
+
+  it('normalizes a private-beta tenant creation allowlist', () => {
+    const env = validateEnv(
+      validEnvironment({
+        TENANCY_MODE: 'multi',
+        ADMIN_TG_IDS: '',
+        TENANT_CREATION_MODE: 'allowlist',
+        TENANT_CREATION_TG_IDS: '501, 502,0501',
+      }),
+    );
+
+    expect(env.TENANT_CREATION_MODE).toBe('allowlist');
+    expect(env.TENANT_CREATION_TG_IDS).toEqual(['501', '502']);
   });
 
   it('normalizes ordered tenant bot encryption keys', () => {
@@ -180,6 +196,24 @@ describe('validateEnv', () => {
     ],
     ['missing admins', { ADMIN_TG_IDS: '', ADMIN_TG_ID: '' }, 'ADMIN_TG_IDS'],
     ['bad tenancy mode', { TENANCY_MODE: 'team' }, 'single or multi'],
+    [
+      'bad tenant creation mode',
+      { TENANT_CREATION_MODE: 'invite' },
+      'open, allowlist, or closed',
+    ],
+    [
+      'empty tenant creation allowlist',
+      { TENANT_CREATION_MODE: 'allowlist', TENANT_CREATION_TG_IDS: '' },
+      'must contain at least one Telegram ID',
+    ],
+    [
+      'bad tenant creation allowlist ID',
+      {
+        TENANT_CREATION_MODE: 'allowlist',
+        TENANT_CREATION_TG_IDS: '501,username',
+      },
+      'contains a non-decimal Telegram ID',
+    ],
     [
       'invalid tenant bot key',
       { TENANT_BOT_ENCRYPTION_KEYS: 'active:not-base64url' },

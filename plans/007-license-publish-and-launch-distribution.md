@@ -40,12 +40,18 @@ publish reproducible artifacts and a Railway template.
 - `apps/admin/LICENSE` and `apps/gallery/LICENSE` contain the upstream Telegram
   Mini Apps template MIT license and copyright notice; these notices must not be
   discarded by a root-license change.
-- There is no root LICENSE, NOTICE, contributor policy, security policy, release
-  workflow, image provenance, or public upgrade policy.
+- Contributor, conduct, security, support, third-party notice, release,
+  upgrading, backup, billing, and operations artifacts now exist. The root
+  license/notice and accepted contributor strategy remain blocked on the
+  recorded owner/counsel decision.
 - The repository remote is `pavelivanov/my-telegram-gallery`; the attached plan
   says it is private. Do not assume visibility without checking at release time.
-- Plan 003 should produce one Docker image/topology; Plan 006 should produce
-  billing and launch runbooks.
+- The one-image topology, Compose self-host path, private candidate workflow,
+  SBOM/evidence scripts, Stars billing implementation, private-beta admission
+  allowlist, and launch runbooks are implemented. The candidate is unsigned and
+  unpublished; final native/clean-machine acceptance is still required.
+- `railway.json` and a one-service template runbook are prepared, but no Railway
+  project or marketplace template has been created or authorized.
 - Railway's current public program (checked 2026-07-13) advertises a 15% base
   template usage kickback plus a 10% active-support bonus, not 50%. Treat this
   as a changeable distribution incentive, not a business-model guarantee.
@@ -75,14 +81,14 @@ decision in `docs/decisions/001-license.md`, including contributor implications.
 
 ## Commands you will need
 
-| Purpose | Command | Expected on success |
-|---|---|---|
-| Full source gate | `pnpm check && pnpm build` | exit 0 |
-| Image gate | `docker build -t my-telegram-gallery:release-candidate .` | exit 0 |
-| Compose smoke | `bash scripts/smoke-self-host.sh` | exit 0 and clean teardown |
-| Secret scan | approved scanner over current tree **and full Git history** | zero unresolved findings |
-| Dependency audit | ecosystem audit plus image scan | no unresolved reachable high/critical issue |
-| Docs links | approved Markdown/link checker | exit 0 |
+| Purpose          | Command                                                     | Expected on success                         |
+| ---------------- | ----------------------------------------------------------- | ------------------------------------------- |
+| Full source gate | `pnpm check && pnpm build`                                  | exit 0                                      |
+| Image gate       | `docker build -t my-telegram-gallery:release-candidate .`   | exit 0                                      |
+| Compose smoke    | `bash scripts/smoke-self-host.sh`                           | exit 0 and clean teardown                   |
+| Secret scan      | approved scanner over current tree **and full Git history** | zero unresolved findings                    |
+| Dependency audit | ecosystem audit plus image scan                             | no unresolved reachable high/critical issue |
+| Docs links       | approved Markdown/link checker                              | exit 0                                      |
 
 ## Scope
 

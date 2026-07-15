@@ -33,19 +33,15 @@ refund support, and `/paysupport` compliance.
 
 ## Current state
 
-- The audited repository has no Telegram Bot API client, webhook controller,
-  checkout, payment, or subscription model. `TELEGRAM_BOT_TOKEN` is currently
-  used only by `apps/api/src/auth/tg-init-data.guard.ts:43-49` to validate Mini
-  App identity.
-- The current admin routes contain only album list/detail screens at
-  `apps/admin/src/navigation/routes.tsx:12-15`; there is no plan/billing state.
-- The API currently authenticates Mini App HTTP calls with
-  `Authorization: tma <initDataRaw>`. Telegram webhook updates cannot use that
-  guard and need their own request-authenticity boundary.
-- Plan 004 is expected to add Tenant plan/status and OWNER membership. Plan 005
-  is expected to make those entitlements authoritative for quotas, grace, and
-  suspension. This plan must call that single entitlement service rather than
-  setting plan fields in multiple webhook branches.
+- The database models, small Bot API client, authenticated/deduplicated webhook,
+  owner checkout API, entitlement service, billing UI, expiry/reconciliation
+  commands, cancellation, refunds, and `/paysupport` are implemented.
+- Automated tests cover first payment, renewal, duplicate and out-of-order
+  delivery, invalid payer/currency/amount/checkout, owner/status revocation,
+  grace, cancellation, refund, and a barrier-controlled renewal/expiry race.
+- Remaining work is external acceptance and operation: approve the product and
+  legal inputs, execute the real Telegram test-environment matrix, configure
+  production schedules/alerts/owners, and explicitly authorize activation.
 
 ## Current platform constraints validated 2026-07-13
 
@@ -64,10 +60,10 @@ refund support, and `/paysupport` compliance.
 - Webhooks may carry a configured `X-Telegram-Bot-Api-Secret-Token`; validate it
   on every update and deduplicate by `update_id`.
 
-Before implementation, the executor must re-fetch current official Telegram
-Bot API/Payments docs because these details are platform-controlled.
+Before production acceptance, the executor must re-fetch current official
+Telegram Bot API/Payments docs because these details are platform-controlled.
 
-## Product inputs required before merge
+## Product inputs required before production activation
 
 - Pro price in Stars and display copy.
 - Grace duration after `subscription_expiration_date`.
@@ -79,12 +75,12 @@ Bot API/Payments docs because these details are platform-controlled.
 
 ## Commands you will need
 
-| Purpose | Command | Expected on success |
-|---|---|---|
-| Migration/E2E | `pnpm prisma:generate && pnpm test:e2e` | billing E2E passes |
-| Focused tests | `pnpm --filter api test -- billing telegram webhook --runInBand` | all pass |
-| Full gate | `pnpm check && pnpm build` | exit 0 |
-| Expiry dry run | `pnpm billing:expire -- --dry-run` | deterministic candidate list |
+| Purpose        | Command                                                          | Expected on success          |
+| -------------- | ---------------------------------------------------------------- | ---------------------------- |
+| Migration/E2E  | `pnpm prisma:generate && pnpm test:e2e`                          | billing E2E passes           |
+| Focused tests  | `pnpm --filter api test -- billing telegram webhook --runInBand` | all pass                     |
+| Full gate      | `pnpm check && pnpm build`                                       | exit 0                       |
+| Expiry dry run | `pnpm billing:expire -- --dry-run`                               | deterministic candidate list |
 
 ## Scope
 

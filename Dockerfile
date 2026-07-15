@@ -10,7 +10,7 @@ WORKDIR /workspace
 
 RUN apk add --no-cache openssl \
   && corepack enable \
-  && corepack prepare pnpm@10.29.3 --activate
+  && corepack prepare pnpm@11.13.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/admin/package.json apps/admin/package.json

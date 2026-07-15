@@ -14,7 +14,7 @@ import {
   TenantRole,
 } from '../../generated/prisma/client';
 import type { TgUser } from '../auth/tg-init-data.guard';
-import type { TenancyMode } from '../config/env';
+import type { TenancyMode, TenantCreationMode } from '../config/env';
 import { getPlanPolicy, PLAN_POLICY_VERSION } from '../plans/plan-policy';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotaException } from '../quota/quota.errors';
@@ -30,6 +30,8 @@ import {
 export class TenantsService {
   private readonly adminIds: readonly string[];
   private readonly mode: TenancyMode;
+  private readonly tenantCreationIds: ReadonlySet<string>;
+  private readonly tenantCreationMode: TenantCreationMode;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -38,6 +40,12 @@ export class TenantsService {
   ) {
     this.adminIds = config.getOrThrow<readonly string[]>('ADMIN_TG_IDS');
     this.mode = config.getOrThrow<TenancyMode>('TENANCY_MODE');
+    this.tenantCreationIds = new Set(
+      config.getOrThrow<readonly string[]>('TENANT_CREATION_TG_IDS'),
+    );
+    this.tenantCreationMode = config.getOrThrow<TenantCreationMode>(
+      'TENANT_CREATION_MODE',
+    );
   }
 
   async listAccessible(user: TgUser, botTenantId?: string) {
@@ -106,6 +114,7 @@ export class TenantsService {
     if (botTenantId) {
       throw new ForbiddenException('Create galleries through the service bot');
     }
+    this.assertTenantCreationAllowed(user);
     if (RESERVED_TENANT_SLUGS.has(slug)) {
       throw new ConflictException('Tenant slug is reserved');
     }
@@ -157,6 +166,21 @@ export class TenantsService {
       }
       throw error;
     }
+  }
+
+  private assertTenantCreationAllowed(user: TgUser): void {
+    if (this.tenantCreationMode === 'open') return;
+    if (
+      this.tenantCreationMode === 'allowlist' &&
+      this.tenantCreationIds.has(String(user.id))
+    ) {
+      return;
+    }
+    throw new ForbiddenException(
+      this.tenantCreationMode === 'closed'
+        ? 'Gallery creation is currently closed'
+        : 'Gallery creation is limited to invited beta users',
+    );
   }
 
   async getAccessible(user: TgUser, slug: string, botTenantId?: string) {
