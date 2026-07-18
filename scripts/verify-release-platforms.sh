@@ -10,6 +10,7 @@ GRYPE_IMAGE="anchore/grype:v0.115.0@sha256:decd87500a90c1e4faa1706f77b0b2cbc1d2f
 PLATFORMS_CSV="${RELEASE_PLATFORMS:-linux/amd64,linux/arm64}"
 REQUIRE_NATIVE="${RELEASE_REQUIRE_NATIVE:-false}"
 VERSION="${RELEASE_VERSION:-0.0.0-platform-test}"
+SUFFIX_ARCHITECTURE="${RELEASE_VERSION_SUFFIX_ARCHITECTURE:-true}"
 OUTPUT_DIR="$ROOT_DIR/output/platforms"
 
 require_command() {
@@ -35,6 +36,10 @@ if [[ "$REQUIRE_NATIVE" != "true" && "$REQUIRE_NATIVE" != "false" ]]; then
   echo "RELEASE_REQUIRE_NATIVE must be true or false." >&2
   exit 1
 fi
+if [[ "$SUFFIX_ARCHITECTURE" != "true" && "$SUFFIX_ARCHITECTURE" != "false" ]]; then
+  echo "RELEASE_VERSION_SUFFIX_ARCHITECTURE must be true or false." >&2
+  exit 1
+fi
 
 REVISION="$(git rev-parse HEAD)"
 CREATED="${SOURCE_DATE_CREATED:-$(git show -s --format=%cI HEAD)}"
@@ -48,6 +53,7 @@ if [[ ! "$SOURCE" =~ ^https:// ]]; then
   echo "Set RELEASE_SOURCE_URL to the reviewed HTTPS source repository URL." >&2
   exit 1
 fi
+SOURCE_URL="$SOURCE/tree/$REVISION"
 
 HOST_ARCHITECTURE="$(docker info --format '{{.Architecture}}')"
 case "$HOST_ARCHITECTURE" in
@@ -78,6 +84,10 @@ for platform in "${platforms[@]}"; do
     exit 1
   fi
   image="my-telegram-gallery:platform-$architecture"
+  image_version="$VERSION"
+  if [[ "$SUFFIX_ARCHITECTURE" == "true" ]]; then
+    image_version="$VERSION-$architecture"
+  fi
   platform_output="$OUTPUT_DIR/$architecture"
   mkdir -p "$platform_output"
   platform_started="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -86,14 +96,18 @@ for platform in "${platforms[@]}"; do
     --build-arg "BUILD_CREATED=$CREATED" \
     --build-arg "BUILD_REVISION=$REVISION" \
     --build-arg "BUILD_SOURCE=$SOURCE" \
-    --build-arg "BUILD_VERSION=$VERSION-$architecture" \
+    --build-arg "BUILD_SOURCE_URL=$SOURCE_URL" \
+    --build-arg "BUILD_VERSION=$image_version" \
     --tag "$image" .
 
   [[ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" == "$platform" ]]
   [[ "$(docker image inspect --format '{{.Config.User}}' "$image")" == "node" ]]
   [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")" == "$REVISION" ]]
   [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$image")" == "$SOURCE" ]]
-  [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")" == "$VERSION-$architecture" ]]
+  [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")" == "$image_version" ]]
+  [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' "$image")" == "AGPL-3.0-only" ]]
+  [[ "$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$image" | awk -F= '$1 == "APP_SOURCE_URL" { print substr($0, index($0, "=") + 1) }')" == "$SOURCE_URL" ]]
+  [[ "$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$image" | awk -F= '$1 == "APP_VERSION" { print substr($0, index($0, "=") + 1) }')" == "$image_version" ]]
 
   docker run --rm --platform "$platform" --entrypoint node "$image" -e '
     require("sharp")({
@@ -143,7 +157,7 @@ for platform in "${platforms[@]}"; do
     --arg revision "$REVISION" \
     --arg source "$SOURCE" \
     --arg syft "$SYFT_IMAGE" \
-    --arg version "$VERSION-$architecture" \
+    --arg version "$image_version" \
     '{architecture: $architecture, created: $created, emulated: $emulated, hostArchitecture: $hostArchitecture, image: $image, imageId: $imageId, platform: $platform, revision: $revision, source: $source, tools: {gitleaks: $gitleaks, grype: $grype, syft: $syft}, version: $version}' \
     > "$platform_output/metadata.json"
   platform_finished="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"

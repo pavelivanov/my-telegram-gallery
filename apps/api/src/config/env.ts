@@ -10,6 +10,9 @@ const DEFAULT_TELEGRAM_BOT_API_TIMEOUT_MS = 5000;
 const DEFAULT_BILLING_CHECKOUT_TTL_SECONDS = 900;
 const DEFAULT_UPLOAD_INTENT_TTL_SECONDS = 600;
 const DEFAULT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const DEFAULT_APP_SOURCE_URL =
+  'https://github.com/pavelivanov/my-telegram-gallery/tree/main';
+const DEFAULT_APP_VERSION = 'development';
 const MAX_INIT_DATA_MAX_AGE_SECONDS = 86_400;
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 const MIN_INIT_DATA_MAX_AGE_SECONDS = 60;
@@ -26,6 +29,8 @@ export interface TenantBotEncryptionKey {
 }
 
 export interface AppEnvironment {
+  APP_SOURCE_URL: string;
+  APP_VERSION: string;
   DATABASE_URL: string;
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_BOT_USERNAME: string;
@@ -563,6 +568,13 @@ export function validateEnv(
   config: RawEnvironment,
 ): RawEnvironment & AppEnvironment {
   const errors: string[] = [];
+  const appSourceUrl =
+    parseOptionalHttpsUrl(config, 'APP_SOURCE_URL', errors) ??
+    DEFAULT_APP_SOURCE_URL;
+  const appVersion = readString(config, 'APP_VERSION') ?? DEFAULT_APP_VERSION;
+  if (!/^[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$/.test(appVersion)) {
+    errors.push('APP_VERSION must be 1-128 safe version characters');
+  }
   const databaseUrl = parseDatabaseUrl(
     requireString(config, 'DATABASE_URL', errors),
     errors,
@@ -802,6 +814,8 @@ export function validateEnv(
 
   return {
     ...config,
+    APP_SOURCE_URL: appSourceUrl,
+    APP_VERSION: appVersion,
     DATABASE_URL: databaseUrl,
     TELEGRAM_BOT_TOKEN: botToken,
     TELEGRAM_BOT_USERNAME: botUsername,

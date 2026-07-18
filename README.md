@@ -4,9 +4,10 @@ A self-hostable Telegram gallery with two Mini Apps and one production image.
 The gallery and public browser landing page share `/`, the administrator app
 lives at `/admin/`, and the NestJS API at `/api/`.
 
-> **Pre-release:** no public release or support SLA exists yet. The source
-> license, ownership, security contact, release signing, and clean-environment
-> acceptance gates are still pending. Do not redistribute a release candidate.
+> **Pre-release:** the source is licensed AGPL-3.0-only, with separate commercial
+> licensing planned. No public release or support SLA exists yet. Ownership,
+> commercial contact, CLA, security contact, release signing, and clean-machine
+> acceptance remain open gates. Release candidates are private and unpublished.
 
 Gallery administration remains Telegram-only: signed Telegram Mini App init
 data is the authentication boundary. Ordinary browsers see the product landing
@@ -37,8 +38,9 @@ photo, intent, object key, and media URL. Multi-mode gallery creation can be
 open, closed, or restricted to an explicit Telegram-user allowlist for private
 betas; existing memberships are unaffected.
 Runtime public config contains only the bot username, the two Mini App short
-names, tenancy mode, upload limit, and optional public Terms/Privacy URLs—never
-tokens, administrator IDs, storage credentials, paths, or signing secrets.
+names, tenancy mode, upload limit, deployed source/version, and optional public
+Terms/Privacy URLs—never tokens, administrator IDs, storage credentials, paths,
+or signing secrets.
 
 ## Supported modes
 
@@ -217,10 +219,13 @@ deploy an image automatically.
 
 ## Project policies
 
-The project is not ready for external contributions or redistribution. Review
-the pending [license decision](docs/decisions/001-license.md),
+The project is licensed [AGPL-3.0-only](LICENSE). Separate commercial licenses
+may be offered later under individual written agreements; no commercial terms
+are granted here. External contributions are not accepted until a reviewed CLA
+exists. Review the accepted [license decision](docs/decisions/001-license.md),
 [third-party inventory](THIRD_PARTY_NOTICES.md),
 [contribution rules](CONTRIBUTING.md), [community standards](CODE_OF_CONDUCT.md),
 [security policy](SECURITY.md), and [support policy](SUPPORT.md). Public source,
 container, Railway template, hosted SaaS, terms, privacy, and acceptable-use
-publication remain separate approval gates.
+publication remain separate approval gates. Nothing has been published or
+deployed externally by this repository work.

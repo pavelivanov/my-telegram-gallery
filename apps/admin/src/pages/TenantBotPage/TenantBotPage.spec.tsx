@@ -13,9 +13,11 @@ const mocks = vi.hoisted(() => ({
     adminAppShortName: 'admin_app',
     galleryAppShortName: 'gallery_app',
     privacyUrl: null,
+    sourceUrl: 'https://github.com/example/gallery/tree/abc123',
     tenancyMode: 'multi' as const,
     termsUrl: null,
     uploadMaxBytes: 1024,
+    version: '0.1.0',
   },
   updateSelectedBot: vi.fn(),
   workspace: null as {

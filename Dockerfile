@@ -33,18 +33,22 @@ FROM ${NODE_IMAGE} AS runtime
 ARG BUILD_CREATED=1970-01-01T00:00:00Z
 ARG BUILD_REVISION=unknown
 ARG BUILD_SOURCE=unknown
+ARG BUILD_SOURCE_URL=https://github.com/pavelivanov/my-telegram-gallery/tree/main
 ARG BUILD_VERSION=0.0.0-dev
 
 LABEL org.opencontainers.image.created="${BUILD_CREATED}" \
   org.opencontainers.image.base.digest="sha256:7c70d1235c0b4c2bc9eeed5393d19f1bbdde6885ba0d58ba62bb385d7b0f3ff1" \
   org.opencontainers.image.base.name="docker.io/library/node:24.17.0-alpine3.23" \
   org.opencontainers.image.description="Self-hostable Telegram gallery with admin, gallery, and API in one image" \
+  org.opencontainers.image.licenses="AGPL-3.0-only" \
   org.opencontainers.image.revision="${BUILD_REVISION}" \
   org.opencontainers.image.source="${BUILD_SOURCE}" \
   org.opencontainers.image.title="my-telegram-gallery" \
   org.opencontainers.image.version="${BUILD_VERSION}"
 
 ENV NODE_ENV=production \
+  APP_SOURCE_URL="${BUILD_SOURCE_URL}" \
+  APP_VERSION="${BUILD_VERSION}" \
   PORT=3000 \
   STATIC_ROOT=/app/static \
   FILESYSTEM_STORAGE_PATH=/data/media \

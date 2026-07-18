@@ -19,6 +19,9 @@
 - **Depends on**: self-host release needs Plan 003; SaaS release needs Plan 006
 - **Category**: docs, direction, release
 - **Planned at**: commit `9282d53`, 2026-07-13; dirty working tree
+- **Decision update**: AGPL-3.0-only plus separate commercial licensing and the
+  guarded GHCR/native-attestation policy approved 2026-07-18; external
+  contributions and all publication/deployment remain unauthorized
 
 ## Why this matters
 
@@ -35,15 +38,16 @@ publish reproducible artifacts and a Railway template.
 
 ## Current state
 
-- Root `package.json` is private and has no license field.
-- `apps/api/package.json:7` says `UNLICENSED`.
+- Root and workspace packages declare `AGPL-3.0-only`; the root contains the
+  unmodified AGPLv3 text and a NOTICE distinguishing separate commercial terms.
 - `apps/admin/LICENSE` and `apps/gallery/LICENSE` contain the upstream Telegram
   Mini Apps template MIT license and copyright notice; these notices must not be
   discarded by a root-license change.
 - Contributor, conduct, security, support, third-party notice, release,
   upgrading, backup, billing, and operations artifacts now exist. The root
-  license/notice and accepted contributor strategy remain blocked on the
-  recorded owner/counsel decision.
+  exact-version network source offer now exist. External contributions remain
+  closed until a reviewed CLA exists; ownership and commercial-contact review
+  are still release blockers.
 - The repository remote is `pavelivanov/my-telegram-gallery`; the attached plan
   says it is private. Do not assume visibility without checking at release time.
 - The one-image topology, Compose self-host path, private candidate workflow,
@@ -59,26 +63,14 @@ publish reproducible artifacts and a Railway template.
 - Railway source-based templates can surface upstream repository updates;
   image-only templates currently do not have the same update mechanism.
 
-## License decision gate
+## License decision (approved 2026-07-18)
 
-The copyright owner must choose one with counsel before Step 2:
-
-1. **AGPL-3.0-only community + separate commercial license** (recommended if
-   copyleft and dual licensing fit the business). Rehosters may operate the app
-   but modified network versions must offer corresponding source under AGPL.
-   To preserve commercial relicensing ability, define contributor copyright/
-   CLA policy before accepting external contributions.
-2. **Apache-2.0 or MIT** (recommended if adoption/ecosystem simplicity is more
-   important than hosted copyleft). This does not protect the hosted service
-   from competitors.
-3. **A counsel-drafted source-available license with hosting restrictions** if
-   preventing competing SaaS is the requirement. Do not market this as “open
-   source” unless the selected license is OSI-approved and actually meets that
-   definition.
-
-Do not invent a “hosted exception” in repository text. An additional permission
-usually grants rights; a restriction changes the license category. Record the
-decision in `docs/decisions/001-license.md`, including contributor implications.
+Use AGPL-3.0-only for the community distribution and separate written commercial
+licenses for eligible customers. Do not add a hosted exception. Do not accept
+external contributions until a professionally reviewed CLA preserves the
+rights required for commercial relicensing. Ownership/employer/client rights
+and the commercial contact/process still require confirmation before public
+release. See `docs/decisions/001-license.md`.
 
 ## Commands you will need
 
@@ -283,24 +275,24 @@ open P0/P1 issue; rollback and suspension drill succeed.
 
 ## Done criteria
 
-- [ ] Human-approved license strategy and decision record exist.
-- [ ] Root/package licensing is consistent and upstream MIT notices remain.
+- [x] Human-approved license strategy and decision record exist.
+- [x] Root/package licensing is consistent and upstream MIT notices remain.
 - [ ] Full-history secret/ownership/license/security review has no unresolved
       release blocker.
-- [ ] `pnpm check && pnpm build`, image build, and Compose smoke pass.
+- [x] `pnpm check && pnpm build`, image build, and Compose smoke pass.
 - [ ] Release candidate has verifiable digest, SBOM, provenance, and signature.
 - [ ] Clean-VM self-host setup, persistence, backup/restore, and upgrade pass.
 - [ ] Railway template uses one source-built app service and passes disposable
       deployment smoke.
 - [ ] Terms/Privacy/AUP/support and SaaS launch gates are professionally reviewed.
-- [ ] No external publication/deploy occurred without explicit approval.
+- [x] No external publication/deploy occurred without explicit approval.
 - [ ] Only in-scope files plus `plans/README.md` changed.
 
 ## STOP conditions
 
 Stop and report if:
 
-- License/business objective or contributor ownership is unresolved.
+- Contributor ownership/employer/client rights are unresolved.
 - Any real credential/private media appears in current tree or history; rotate
   and resolve privately before publicity.
 - A high/critical reachable vulnerability remains unmitigated.

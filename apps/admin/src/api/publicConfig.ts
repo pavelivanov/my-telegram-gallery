@@ -6,9 +6,11 @@ export interface PublicConfig {
   adminAppShortName: string;
   galleryAppShortName: string;
   privacyUrl: string | null;
+  sourceUrl: string;
   tenancyMode: 'single' | 'multi';
   termsUrl: string | null;
   uploadMaxBytes: number;
+  version: string;
 }
 
 export interface BotLinkIdentity {

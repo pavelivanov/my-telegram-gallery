@@ -141,8 +141,14 @@ assert_equal "revision label" "$revision" \
   "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image_id")"
 assert_equal "source label" "$source" \
   "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$image_id")"
+assert_equal "license label" "AGPL-3.0-only" \
+  "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' "$image_id")"
 assert_equal "version label" "$version" \
   "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image_id")"
+assert_equal "network source URL" "$source/tree/$revision" \
+  "$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$image_id" | awk -F= '$1 == "APP_SOURCE_URL" { print substr($0, index($0, "=") + 1) }')"
+assert_equal "network source version" "$version" \
+  "$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$image_id" | awk -F= '$1 == "APP_VERSION" { print substr($0, index($0, "=") + 1) }')"
 
 if docker run --rm --platform "$platform" --entrypoint sh "$image_id" -c \
   'find /app -type f \( -name .env -o -name ".env.*" \) -print -quit' | grep -q .; then

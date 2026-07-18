@@ -47,6 +47,7 @@ if [[ ! "$SOURCE" =~ ^https:// ]]; then
   echo "Set RELEASE_SOURCE_URL to the reviewed HTTPS source repository URL." >&2
   exit 1
 fi
+SOURCE_URL="$SOURCE/tree/$REVISION"
 
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
@@ -64,12 +65,16 @@ docker build --pull \
   --build-arg "BUILD_CREATED=$CREATED" \
   --build-arg "BUILD_REVISION=$REVISION" \
   --build-arg "BUILD_SOURCE=$SOURCE" \
+  --build-arg "BUILD_SOURCE_URL=$SOURCE_URL" \
   --build-arg "BUILD_VERSION=$VERSION" \
   --tag "$IMAGE" .
 
 [[ "$(docker inspect --format '{{.Config.User}}' "$IMAGE")" == "node" ]]
 [[ "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE")" == "$REVISION" ]]
 [[ "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.source" }}' "$IMAGE")" == "$SOURCE" ]]
+[[ "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' "$IMAGE")" == "AGPL-3.0-only" ]]
+[[ "$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE" | awk -F= '$1 == "APP_SOURCE_URL" { print substr($0, index($0, "=") + 1) }')" == "$SOURCE_URL" ]]
+[[ "$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE" | awk -F= '$1 == "APP_VERSION" { print substr($0, index($0, "=") + 1) }')" == "$VERSION" ]]
 [[ "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$IMAGE")" == "$VERSION" ]]
 if docker run --rm --entrypoint sh "$IMAGE" -c \
   'find /app -type f \( -name .env -o -name ".env.*" \) -print -quit' | grep -q .; then

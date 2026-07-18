@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
 
 import { PublicGalleryApp } from './PublicGalleryApp';
+import { SourceNotice } from '@/components/SourceNotice';
 
 const publicQueryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +35,7 @@ export function PublicGalleryRoot() {
     <QueryClientProvider client={publicQueryClient}>
       <HashRouter>
         <PublicGalleryApp />
+        <SourceNotice />
       </HashRouter>
     </QueryClientProvider>
   );

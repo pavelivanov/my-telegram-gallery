@@ -1,0 +1,19 @@
+my-telegram-gallery licensing notice
+
+The original project code in this repository is licensed under the GNU Affero
+General Public License, version 3 only (AGPL-3.0-only). See LICENSE for the
+complete terms.
+
+Eligible copyright holders may offer separate commercial licenses under a
+separate written agreement. Nothing in this repository grants a commercial
+license or changes the AGPL-3.0-only terms. A commercial licensing contact and
+commercial terms have not yet been published.
+
+The administrator and gallery applications retain copyright and MIT license
+notices from the Telegram Mini Apps React template in apps/admin/LICENSE and
+apps/gallery/LICENSE. See THIRD_PARTY_NOTICES.md for their scope and for the
+runtime dependency inventory.
+
+The identity of every original-code copyright holder, including any applicable
+employer or client rights, must be confirmed before public distribution. This
+notice deliberately does not invent or assign copyright ownership.

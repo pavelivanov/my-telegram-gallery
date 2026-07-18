@@ -1,7 +1,8 @@
 # Third-party notices and asset inventory
 
-This inventory supports release review; it is not a license for the project and
-does not replace the license texts shipped by dependencies.
+The original project code is licensed AGPL-3.0-only as described in the root
+`LICENSE` and `NOTICE`. This inventory records separately licensed incorporated
+material and does not replace the license texts shipped by dependencies.
 
 ## Telegram Mini Apps template
 

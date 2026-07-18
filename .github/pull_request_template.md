@@ -1,3 +1,7 @@
+> External pull requests are not accepted until a professionally reviewed CLA
+> is adopted. This template is for authorized maintainer work only. Outside
+> submissions will be closed without using the submitted code.
+
 ## Outcome
 
 Describe the user-visible result and the reason for the change.

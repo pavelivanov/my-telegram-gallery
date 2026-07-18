@@ -47,6 +47,20 @@ identifiers.
 
 ## Prepared controls awaiting external execution
 
+- AGPL-3.0-only plus a separate commercial licensing strategy was approved on
+  2026-07-18. Root/package metadata, the unmodified license text, NOTICE,
+  preserved upstream MIT notices, and exact-version network source offers are
+  implemented locally. External contributions remain closed until a reviewed
+  CLA exists. Original-code ownership and employer/client rights, the
+  commercial contact/process, and legal review remain open release gates.
+- The GHCR policy is approved and implemented as a dormant, manual-only
+  workflow. It requires a protected `release-publication` environment, exact
+  stable-version tag, explicit confirmation phrase, native amd64/arm64 gates,
+  immutable digest assembly, CycloneDX SBOM, and keyless GitHub provenance/SBOM
+  attestations. It creates no `latest` tag and cannot change package visibility.
+  It has not been run and no image, attestation, tag, or deployment was
+  published by this work.
+
 - The private manual candidate workflow now has optional native amd64 and arm64
   jobs. They build, scan, archive, reload, and smoke independently on exact
   Ubuntu 24.04 runner labels, then retain each evidence set privately for seven
@@ -121,15 +135,29 @@ identifiers.
   removed. The upstream MIT license files remain; there is no longer a template
   documentation-image publication blocker.
 
+## Local implementation verification — 2026-07-18
+
+- The AGPL/package/NOTICE/CLA-freeze policy check, documentation links,
+  TypeScript, lint, 163 unit tests, 36 PostgreSQL E2E tests, populated migration
+  rehearsals, and bounded operations reruns passed.
+- Admin, gallery, and API production builds passed. A disposable local image
+  build carried the AGPL OCI label plus configured source/version metadata; the
+  Compose smoke passed static routes, public-config source fields, health,
+  readiness, and migrations. The image was not pushed or deployed.
+- Shell syntax, Compose rendering, workflow YAML parsing, preserved upstream MIT
+  hashes, and dirty-checkout rejection for shared self-host initialization were
+  verified locally. The GHCR workflow remains unexecuted.
+
 ## Open human/external blockers
 
-- Choose and review the root license and contributor-rights strategy.
 - Confirm original-code and screenshot ownership, including employer/client
   rights.
+- Obtain professional review of a CLA and commercial licensing contact/process;
+  do not accept outside code before that review is complete.
 - Enable/test private vulnerability reporting and name security, support,
   backup, abuse, and payment owners.
-- Select and verify registry, signing, trusted provenance, and
-  supported-architecture policy; execute the prepared native workflow and an
+- Execute the approved registry, attestation, and supported-architecture
+  workflow only after separate publication approval, then complete an
   independent reviewer-led acceptance run.
 - Run clean-VM, disposable Railway, Telegram test-environment billing, restore,
   upgrade, rollback, and suspension drills.

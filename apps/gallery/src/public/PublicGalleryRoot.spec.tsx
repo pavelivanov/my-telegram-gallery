@@ -6,6 +6,7 @@ import { PublicGalleryRoot } from './PublicGalleryRoot';
 
 const mocks = vi.hoisted(() => ({
   publicApi: vi.fn(),
+  usePublicConfig: vi.fn(),
   usePublicConfigState: vi.fn(),
 }));
 
@@ -14,13 +15,20 @@ vi.mock('@/api/publicConfig', () => ({
   buildGalleryHomeLink: (_config: unknown, slug: string) =>
     `https://t.me/gallery_bot/gallery?startapp=tenant_${slug}`,
   usePublicConfigState: mocks.usePublicConfigState,
+  usePublicConfig: mocks.usePublicConfig,
 }));
 
 describe('PublicGalleryRoot', () => {
   beforeEach(() => {
     mocks.publicApi.mockReset();
+    const config = {
+      tenancyMode: 'multi',
+      sourceUrl: 'https://github.com/example/gallery/tree/abc123',
+      version: '0.1.0',
+    };
+    mocks.usePublicConfig.mockReturnValue(config);
     mocks.usePublicConfigState.mockReturnValue({
-      config: { tenancyMode: 'multi' },
+      config,
       failed: false,
     });
     delete document.documentElement.dataset.galleryTheme;
@@ -71,6 +79,12 @@ describe('PublicGalleryRoot', () => {
     ).toHaveAttribute(
       'href',
       'https://t.me/gallery_bot/gallery?startapp=tenant_field_notes',
+    );
+    expect(
+      screen.getByRole('link', { name: 'version 0.1.0' }),
+    ).toHaveAttribute(
+      'href',
+      'https://github.com/example/gallery/tree/abc123',
     );
 
     await user.click(screen.getByText('Report this gallery'));

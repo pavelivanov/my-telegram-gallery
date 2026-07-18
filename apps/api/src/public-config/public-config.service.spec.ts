@@ -11,6 +11,8 @@ describe('PublicConfigService', () => {
       ['UPLOAD_MAX_BYTES', 25_000_000],
       ['BILLING_TERMS_URL', 'https://example.com/terms'],
       ['BILLING_PRIVACY_URL', 'https://example.com/privacy'],
+      ['APP_SOURCE_URL', 'https://github.com/example/gallery/tree/abc123'],
+      ['APP_VERSION', '0.1.0'],
     ]);
     const config = {
       get: jest.fn((key: string) => values.get(key)),
@@ -26,9 +28,11 @@ describe('PublicConfigService', () => {
       adminAppShortName: 'admin',
       galleryAppShortName: 'gallery',
       privacyUrl: 'https://example.com/privacy',
+      sourceUrl: 'https://github.com/example/gallery/tree/abc123',
       tenancyMode: 'multi',
       termsUrl: 'https://example.com/terms',
       uploadMaxBytes: 25_000_000,
+      version: '0.1.0',
     });
   });
 
@@ -39,6 +43,8 @@ describe('PublicConfigService', () => {
       ['TELEGRAM_GALLERY_APP_SHORT_NAME', 'gallery'],
       ['TENANCY_MODE', 'single'],
       ['UPLOAD_MAX_BYTES', 1_000],
+      ['APP_SOURCE_URL', 'https://github.com/example/gallery/tree/abc123'],
+      ['APP_VERSION', '0.1.0'],
     ]);
     const config = {
       get: jest.fn(),

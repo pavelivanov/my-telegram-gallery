@@ -1,0 +1,221 @@
+name: Publish release image (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable SemVer already tagged as vVERSION, for example 0.1.0
+        required: true
+        type: string
+      confirmation:
+        description: Type PUBLISH GHCR RELEASE after publication is separately authorized
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  SYFT_IMAGE: anchore/syft:v1.46.0@sha256:473a60e3a58e29aca3aedb3e99e787bb4ef273917e44d10fcbea4330a07320bb
+
+jobs:
+  authorize-and-verify-source:
+    environment: release-publication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Enforce exact tag and explicit publication authorization
+        run: >-
+          bash scripts/validate-release-publication.sh
+          "${{ inputs.version }}"
+          "${{ github.ref }}"
+          "${{ inputs.confirmation }}"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit:dependencies
+      - run: pnpm check
+      - run: pnpm build
+      - name: Scan the complete Git history for secrets
+        run: >-
+          docker run --rm
+          -v "$PWD:/repo" -w /repo
+          zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git --redact --no-banner --no-color --log-opts=--all .
+
+  native-amd64:
+    needs: authorize-and-verify-source
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: coordinates
+        name: Normalize GHCR package name
+        run: |
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+          echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+      - name: Build, scan, reload, and smoke the native amd64 image
+        env:
+          RELEASE_PLATFORMS: linux/amd64
+          RELEASE_REQUIRE_NATIVE: "true"
+          RELEASE_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION_SUFFIX_ARCHITECTURE: "false"
+        run: bash scripts/verify-release-platforms.sh
+      - name: Log in to GHCR
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: publish
+        name: Push verified amd64 image by temporary architecture tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          tag="$IMAGE_NAME:$VERSION-amd64"
+          docker tag my-telegram-gallery:platform-amd64 "$tag"
+          docker push "$tag"
+          digest="$(docker buildx imagetools inspect "$tag" | awk '$1 == "Digest:" { print $2; exit }')"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  native-arm64:
+    needs: authorize-and-verify-source
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Normalize GHCR package name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+      - name: Build, scan, reload, and smoke the native arm64 image
+        env:
+          RELEASE_PLATFORMS: linux/arm64
+          RELEASE_REQUIRE_NATIVE: "true"
+          RELEASE_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION_SUFFIX_ARCHITECTURE: "false"
+        run: bash scripts/verify-release-platforms.sh
+      - name: Log in to GHCR
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: publish
+        name: Push verified arm64 image by temporary architecture tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          tag="$IMAGE_NAME:$VERSION-arm64"
+          docker tag my-telegram-gallery:platform-arm64 "$tag"
+          docker push "$tag"
+          digest="$(docker buildx imagetools inspect "$tag" | awk '$1 == "Digest:" { print $2; exit }')"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  publish-manifest-and-attest:
+    needs: [native-amd64, native-arm64]
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - id: coordinates
+        name: Normalize GHCR package name
+        run: |
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+          echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: manifest
+        name: Publish exact-version multi-architecture manifest
+        env:
+          AMD64_DIGEST: ${{ needs.native-amd64.outputs.digest }}
+          ARM64_DIGEST: ${{ needs.native-arm64.outputs.digest }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          docker buildx imagetools create \
+            --tag "$IMAGE_NAME:$VERSION" \
+            "$IMAGE_NAME@$AMD64_DIGEST" \
+            "$IMAGE_NAME@$ARM64_DIGEST"
+          docker buildx imagetools inspect --raw "$IMAGE_NAME:$VERSION" > manifest.json
+          jq -e '
+            .manifests | length == 2 and
+            any(.[]; .platform.os == "linux" and .platform.architecture == "amd64") and
+            any(.[]; .platform.os == "linux" and .platform.architecture == "arm64")
+          ' manifest.json
+          digest="$(docker buildx imagetools inspect "$IMAGE_NAME:$VERSION" | awk '$1 == "Digest:" { print $2; exit }')"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Generate final registry SBOM
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+        run: >-
+          docker run --rm
+          -v "$HOME/.docker:/root/.docker:ro"
+          "$SYFT_IMAGE"
+          "registry:$IMAGE_NAME@$DIGEST"
+          --output cyclonedx-json=sbom.cdx.json
+      - name: Attach keyless build provenance to the registry image
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-name: ${{ steps.coordinates.outputs.name }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
+      - name: Attach the CycloneDX SBOM attestation
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-name: ${{ steps.coordinates.outputs.name }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          sbom-path: sbom.cdx.json
+          push-to-registry: true
+      - name: Verify attestations through GitHub
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh attestation verify "oci://$IMAGE_NAME@$DIGEST" --repo "$GITHUB_REPOSITORY"
+      - name: Record immutable release coordinates
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "## GHCR image prepared"
+            echo
+            echo "\`$IMAGE_NAME:$VERSION\`"
+            echo
+            echo "Immutable digest: \`$IMAGE_NAME@$DIGEST\`"
+            echo
+            echo "No \`latest\` or mutable major/minor alias was published. Package visibility is a separate manual decision."
+          } >> "$GITHUB_STEP_SUMMARY"

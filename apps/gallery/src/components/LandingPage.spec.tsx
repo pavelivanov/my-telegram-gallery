@@ -23,9 +23,11 @@ describe('LandingPage', () => {
         adminAppShortName: 'admin',
         galleryAppShortName: 'gallery',
         privacyUrl: 'https://example.test/privacy',
+        sourceUrl: 'https://github.com/example/gallery/tree/abc123',
         tenancyMode: 'multi',
         termsUrl: 'https://example.test/terms',
         uploadMaxBytes: 25_000_000,
+        version: '0.1.0',
       },
       failed: false,
     });
@@ -44,6 +46,14 @@ describe('LandingPage', () => {
     expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute(
       'href',
       'https://example.test/privacy',
+    );
+    expect(
+      screen.getByRole('link', {
+        name: 'Source v0.1.0 · AGPL-3.0-only · no warranty',
+      }),
+    ).toHaveAttribute(
+      'href',
+      'https://github.com/example/gallery/tree/abc123',
     );
     expect(screen.queryByText(/customer|album|photo count/i)).toBeNull();
   });

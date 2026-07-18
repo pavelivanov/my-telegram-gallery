@@ -1,43 +1,51 @@
 # Decision 001: Project license and contributor rights
 
-- Status: **Pending owner and counsel decision**
-- Release impact: **Blocks public source and artifact distribution**
-- Last reviewed: 2026-07-13
+- Status: **Accepted**
+- Decision date: 2026-07-18
+- Release impact: **License selected; ownership, CLA, commercial contact, and publication approval still block release**
+- Last reviewed: 2026-07-18
 
 ## Context
 
-The repository is private, the API package is marked `UNLICENSED`, and no root
-license grants redistribution rights. The two frontend subdirectories preserve
-MIT notices from their upstream Telegram Mini Apps template. Those notices do
-not license the repository's original code as a whole.
+The repository has remained private and unpublished while the licensing choice
+was reviewed. The two frontend subdirectories preserve MIT notices from their
+upstream Telegram Mini Apps template. Those notices apply to the incorporated
+template material and do not replace the root license for original project
+code.
 
 An “AGPL plus hosted exception” is not a complete business or legal decision.
 AGPL network-source obligations do not prohibit a competing hosted service, and
 adding a hosting restriction would generally make the result source-available
 rather than open source.
 
-## Options requiring approval
+## Decision
 
-1. **AGPL-3.0-only plus a separate commercial license** when network copyleft
-   and dual licensing fit the business. Contributor ownership/CLA policy must
-   preserve commercial relicensing rights.
-2. **Apache-2.0 or MIT** when adoption and ecosystem simplicity matter more than
-   hosted copyleft.
-3. **Counsel-drafted source-available terms** when restricting competing SaaS
-   is the actual objective. Documentation must not call this open source unless
-   the final license is OSI-approved and meets that definition.
+The original project code is licensed **AGPL-3.0-only**. The unmodified license
+text is in the root `LICENSE` file. Eligible copyright holders may separately
+offer commercial licenses through a distinct written agreement; the repository
+itself grants no commercial exception or additional permission.
 
-## Decision required
+Every deployed network UI must prominently offer users the corresponding source
+and link to the exact deployed source revision. Release images embed the source
+revision and version used by the public-config endpoint.
 
-The copyright owner must record:
+External contributions are not accepted until a professionally reviewed CLA is
+adopted. The CLA must give the relevant copyright holders sufficient rights to
+continue offering separate commercial licenses. Merely adding a `Signed-off-by`
+line or using a developer certificate of origin is not an approved substitute.
 
-- the chosen objective and exact unmodified or counsel-approved license text;
-- who owns the original commits and whether employer/client rights apply;
-- whether outside contributions are accepted and under what agreement;
-- the commercial licensing contact/process, if any;
-- any required in-product source offer and deployed-version link.
+## Unresolved release prerequisites
 
-Until this status changes to **Accepted**, do not add a root `LICENSE`, change
-package license metadata, accept external contributions, make the repository
-public, or publish images/templates. No license choice is implied by the release
-engineering artifacts in this repository.
+This decision does not resolve or authorize:
+
+- confirmation of all original-code copyright holders and any employer/client
+  rights;
+- the reviewed CLA text or contributor onboarding process;
+- the commercial licensing contact, commercial terms, or contract process;
+- legal review of copyright notices and public-facing product terms;
+- making the repository public, publishing a container/template, deploying an
+  environment, or changing any external service.
+
+No external contribution may be accepted and no external publication or
+deployment may occur until the relevant prerequisite and a separate explicit
+approval are recorded.

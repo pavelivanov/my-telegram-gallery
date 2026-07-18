@@ -121,9 +121,12 @@ describe('Application (e2e)', () => {
         adminAppShortName: process.env.TELEGRAM_ADMIN_APP_SHORT_NAME,
         galleryAppShortName: process.env.TELEGRAM_GALLERY_APP_SHORT_NAME,
         privacyUrl: process.env.BILLING_PRIVACY_URL,
+        sourceUrl:
+          'https://github.com/pavelivanov/my-telegram-gallery/tree/main',
         tenancyMode: 'single',
         termsUrl: process.env.BILLING_TERMS_URL,
         uploadMaxBytes: Number(process.env.UPLOAD_MAX_BYTES),
+        version: 'development',
       });
   });
 

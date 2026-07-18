@@ -14,6 +14,8 @@ function validEnvironment(overrides: Record<string, unknown> = {}) {
     STORAGE_TRANSFER_MODE: 'proxy',
     FILESYSTEM_STORAGE_PATH: '/tmp/gallery-media',
     MEDIA_URL_SIGNING_SECRET: SIGNING_SECRET,
+    APP_SOURCE_URL: 'https://github.com/example/gallery/tree/abc123',
+    APP_VERSION: '0.1.0',
     WEB_ORIGINS: 'https://admin.example.com, http://localhost:5173',
     ...overrides,
   };
@@ -49,6 +51,10 @@ describe('validateEnv', () => {
     expect(env.TELEGRAM_BOT_API_TIMEOUT_MS).toBe(5000);
     expect(env.BILLING_CHECKOUT_TTL_SECONDS).toBe(900);
     expect(env.BILLING_PRO_PRICE_STARS).toBeUndefined();
+    expect(env.APP_SOURCE_URL).toBe(
+      'https://github.com/example/gallery/tree/abc123',
+    );
+    expect(env.APP_VERSION).toBe('0.1.0');
     expect(env.TELEGRAM_BOT_USERNAME).toBe('test_gallery_bot');
     expect(env.TENANCY_MODE).toBe('single');
     expect(env.TENANT_CREATION_MODE).toBe('open');
@@ -181,6 +187,16 @@ describe('validateEnv', () => {
   });
 
   it.each([
+    [
+      'insecure source URL',
+      { APP_SOURCE_URL: 'http://example.com/source' },
+      'APP_SOURCE_URL must be an HTTPS URL',
+    ],
+    [
+      'unsafe app version',
+      { APP_VERSION: '0.1.0 with spaces' },
+      'APP_VERSION must be 1-128 safe version characters',
+    ],
     ['missing database', { DATABASE_URL: '' }, 'DATABASE_URL is required'],
     ['wrong database', { DATABASE_URL: 'https://example.com' }, 'postgres'],
     ['missing token', { TELEGRAM_BOT_TOKEN: '' }, 'TELEGRAM_BOT_TOKEN'],

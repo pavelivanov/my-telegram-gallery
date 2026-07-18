@@ -202,7 +202,8 @@ else
   docker image inspect "$IMAGE" >/dev/null
 fi
 
-SELF_HOST_ENV_FILE="$SOURCE_ENV" bash "$ROOT_DIR/scripts/init-self-host.sh"
+SELF_HOST_ALLOW_DIRTY_SOURCE=true SELF_HOST_ENV_FILE="$SOURCE_ENV" \
+  bash "$ROOT_DIR/scripts/init-self-host.sh"
 set -a
 # shellcheck disable=SC1090
 source "$SOURCE_ENV"

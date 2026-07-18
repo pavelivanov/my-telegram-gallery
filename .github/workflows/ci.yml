@@ -87,6 +87,7 @@ jobs:
           --build-arg BUILD_CREATED="$(git show -s --format=%cI HEAD)"
           --build-arg BUILD_REVISION="$GITHUB_SHA"
           --build-arg BUILD_SOURCE="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          --build-arg BUILD_SOURCE_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$GITHUB_SHA"
           --build-arg BUILD_VERSION="0.0.0-ci.$GITHUB_RUN_NUMBER"
           --tag my-telegram-gallery:ci .
       - name: Verify non-root runtime

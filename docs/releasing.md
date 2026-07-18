@@ -1,8 +1,9 @@
 # Release process
 
-There is no public release yet. This process creates a private, traceable
-candidate and stops before registry publication, signing, deployment, or a Git
-tag unless every human gate is approved.
+There is no public release yet. AGPL-3.0-only and the GHCR/attestation/
+multi-architecture policy are approved, but publication is not authorized.
+The normal process creates a private, traceable candidate and stops before a
+registry push, attestation, deployment, or Git tag.
 
 ## Versioning
 
@@ -57,6 +58,40 @@ mismatch fails instead of silently falling back to emulation. They can be
 disabled for a faster candidate-only rehearsal. Every job has read-only
 repository permissions and no package, attestation, or identity-token
 permission, so this workflow cannot publish or sign a release.
+
+## Guarded GHCR publication policy
+
+`.github/workflows/publish-release.yml` prepares the approved publication path
+but must not be run until external publication receives a separate explicit
+authorization. It is deliberately manual-only and has no tag or branch trigger.
+Before the first authorized run, maintainers must configure the GitHub
+`release-publication` environment with required reviewers.
+
+The workflow accepts only a stable SemVer whose selected ref is the exact
+`vVERSION` tag and requires the literal confirmation `PUBLISH GHCR RELEASE`.
+It then:
+
+1. reruns license/release policy, dependency, source, E2E, build, and full-Git
+   secret gates;
+2. independently builds, scans, archives, reloads, and lifecycle-smokes amd64
+   on `ubuntu-24.04` and arm64 on `ubuntu-24.04-arm` without emulation;
+3. pushes the two verified platform images to GHCR and combines their immutable
+   digests into one exact-version manifest;
+4. generates a CycloneDX SBOM from the registry manifest;
+5. attaches keyless GitHub build-provenance and SBOM attestations to the exact
+   manifest digest, then verifies them with `gh attestation verify`.
+
+The initial policy publishes only `VERSION` and temporary `VERSION-amd64` /
+`VERSION-arm64` assembly tags. It does not publish `latest` or mutable
+major/minor aliases. Package visibility is a separate manual GHCR decision and
+is not changed by the workflow. Each image exposes the exact
+`SOURCE_REPOSITORY/tree/COMMIT` URL and version through `/api/config/public` and
+the network UI.
+
+GitHub artifact attestations for private repositories require GitHub Enterprise
+Cloud. If the repository remains private without that entitlement, do not run
+the workflow; keep using the private candidate path until repository visibility
+or the approved attestation mechanism changes.
 
 ## Local release build type v1
 
@@ -203,13 +238,14 @@ Before publication, independently verify `SHA256SUMS`, load the image archive,
 compare its revision label with the release commit, and rerun the smoke test.
 Then require evidence for:
 
-- accepted license/ownership/contributor decision;
+- accepted license decision plus confirmed ownership and a reviewed CLA policy;
 - zero unresolved secret, license, or reachable high/critical finding;
 - clean-VM setup, persistence, backup/restore, upgrade, and rollback;
-- reviewed registry, image-signing identity, SBOM/provenance/attestation flow;
-- supported CPU architectures (currently no multi-architecture claim);
+- successful execution of the approved GHCR, keyless attestation, SBOM, and
+  native amd64/arm64 workflow on the exact release tag;
 - staffed security/support contacts and reviewed public copy.
 
-Creating a tag, pushing a registry image, publishing a Railway template, making
+Creating a tag, running the GHCR workflow, changing package visibility,
+publishing a Railway template, making
 the repository public, deploying production, changing DNS/BotFather, or
 enabling a production billing webhook each requires explicit operator approval.

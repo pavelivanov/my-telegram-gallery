@@ -42,7 +42,16 @@ bash scripts/init-self-host.sh
 
 The script creates a mode-600 `.env`, generates a database password and an
 independent media URL signing secret, and never prints either value. It will not
-overwrite an existing `.env`.
+overwrite an existing `.env`. When run from a Git checkout with an HTTPS GitHub
+remote, it also records the exact commit in `BUILD_SOURCE_URL`,
+`BUILD_REVISION`, and `BUILD_VERSION`. The built app displays that corresponding
+source link to network users as required by its AGPL-3.0-only license. If the
+checkout has another remote shape, set those non-secret build values manually
+before sharing the deployment. The linked corresponding source must be
+reachable by every network user. The initializer refuses a dirty checkout
+because its commit URL would omit local modifications; commit those changes
+first. `SELF_HOST_ALLOW_DIRTY_SOURCE=true` exists only for disposable local
+development smoke and is not a compliant shared-deployment shortcut.
 
 Edit `.env` and provide at least:
 

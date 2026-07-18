@@ -76,7 +76,8 @@ trap cleanup EXIT
 
 HTTP_PORT="${SMOKE_HTTP_PORT:-$(available_port)}"
 HTTPS_PORT="${SMOKE_HTTPS_PORT:-$(available_port)}"
-SELF_HOST_ENV_FILE="$ENV_FILE" bash "$ROOT_DIR/scripts/init-self-host.sh"
+SELF_HOST_ALLOW_DIRTY_SOURCE=true SELF_HOST_ENV_FILE="$ENV_FILE" \
+  bash "$ROOT_DIR/scripts/init-self-host.sh"
 
 set -a
 # shellcheck disable=SC1090
@@ -111,11 +112,14 @@ gallery_html="$(fetch "$BASE_URL/")"
 admin_html="$(fetch "$BASE_URL/admin/")"
 live_json="$(fetch "$BASE_URL/api/health/live")"
 ready_json="$(fetch "$BASE_URL/api/health/ready")"
+public_config_json="$(fetch "$BASE_URL/api/config/public")"
 
 [[ "$gallery_html" == *'<title>Gallery</title>'* ]]
 [[ "$admin_html" == *'<title>Gallery Admin</title>'* ]]
 [[ "$live_json" == *'"status":"ok"'* ]]
 [[ "$ready_json" == *'"status":"ready"'* ]]
+[[ "$public_config_json" == *'"sourceUrl":"https://'* ]]
+[[ "$public_config_json" == *'"version":"'* ]]
 
 if [[ "$admin_html" =~ src=\"(/admin/assets/[^\"]+)\" ]]; then
   fetch "$BASE_URL${BASH_REMATCH[1]}" >/dev/null

@@ -47,10 +47,10 @@ Change:
    globally unique and resolve tenant server-side.
 7. **Do not accept soft quota races.** Reserve bytes before upload, verify actual
    original+variant sizes, serialize per-tenant mutations, and reconcile.
-8. **Replace the license slogan with a decision.** AGPL creates a network source
-   obligation but does not prohibit competing hosting. Choose AGPL + separate
-   commercial licensing, a permissive license, or a counsel-drafted
-   source-available license according to the actual business goal.
+8. **Apply the approved license decision.** The community distribution is
+   AGPL-3.0-only with separate commercial licensing. Network users receive an
+   exact-version source offer. Do not accept external contributions until a
+   reviewed CLA preserves commercial relicensing rights.
 9. **Correct Railway economics.** Current public docs state 15% base template
    kickback and a 10% support bonus (25% total), not 50%. Treat it as a changing
    acquisition incentive, not forecast revenue.
@@ -65,7 +65,7 @@ Change:
 | [004](004-add-tenant-isolation-and-onboarding.md)             | Tenant isolation and onboarding                  |       P1 |      L | 003                     | DONE                                   |
 | [005](005-enforce-quotas-abuse-controls-and-operations.md)    | Quotas, abuse controls, and operations           |       P1 |      L | 004                     | DONE                                   |
 | [006](006-add-telegram-stars-billing.md)                      | Telegram Stars subscriptions                     |       P1 |      L | 005                     | IN PROGRESS (external acceptance)      |
-| [007](007-license-publish-and-launch-distribution.md)         | License, publish, templates, and launch          |    P1/P2 |      L | 003 self-host; 006 SaaS | IN PROGRESS (legal/release acceptance) |
+| [007](007-license-publish-and-launch-distribution.md)         | License, publish, templates, and launch          |    P1/P2 |      L | 003 self-host; 006 SaaS | IN PROGRESS (ownership/external gates) |
 
 Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reason>)`.
 
@@ -108,7 +108,7 @@ Status values: `TODO | IN PROGRESS | DONE | BLOCKED (<reason>) | REJECTED (<reas
 | 6   | Add database-enforced tenant scope and membership                                 | Security              | Every current album/photo operation is global; a tenant selector alone would create IDOR/cross-tenant mutation risk      | L      | HIGH     | `schema.prisma:11-35`; `albums.service.ts:16-95`; `photos.service.ts:22-153`                                    |
 | 7   | Reserve/reconcile actual stored bytes and add suspension/report operations        | Security/Ops          | Direct uploads and preview variants can exceed soft quotas; public SaaS lacks bounded abuse response                     | L      | HIGH     | preview variants at `photos.service.ts:35-72`; unbounded backfill at `107-129`; no current Tenant/Report models |
 | 8   | Process Stars payments as idempotent server events                                | Correctness/Direction | Client callbacks or duplicate webhooks could grant incorrect entitlements; cancellation/grace/refunds need durable state | L      | HIGH     | no current bot webhook/billing modules; one bot token only used for init-data validation                        |
-| 9   | Resolve license/ownership and release safety before publicity                     | Legal/Release         | `UNLICENSED` API plus template MIT notices cannot support a clear public distribution without a reviewed choice          | M/L    | HIGH     | `apps/api/package.json`; `apps/admin/LICENSE`; `apps/gallery/LICENSE`; no root LICENSE                          |
+| 9   | Complete ownership/CLA and release safety before publicity                        | Legal/Release         | License is selected, but ownership rights, reviewed CLA, public contacts, and executed release evidence still gate launch | M/L    | HIGH     | `LICENSE`; `NOTICE`; `docs/decisions/001-license.md`; dormant GHCR workflow                                   |
 
 Effort estimates include tests and are intentionally larger than the attached
 proposal's day estimates. Tenant migration, concurrency-safe quota accounting,

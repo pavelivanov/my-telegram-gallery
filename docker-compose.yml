@@ -5,6 +5,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_REVISION: ${BUILD_REVISION:-main}
+        BUILD_SOURCE: ${BUILD_SOURCE:-https://github.com/pavelivanov/my-telegram-gallery}
+        BUILD_SOURCE_URL: ${BUILD_SOURCE_URL:-https://github.com/pavelivanov/my-telegram-gallery/tree/main}
+        BUILD_VERSION: ${BUILD_VERSION:-0.0.0-self-host}
     image: ${APP_IMAGE:-my-telegram-gallery:local}
     restart: unless-stopped
     read_only: true

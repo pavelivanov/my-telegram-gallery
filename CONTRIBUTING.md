@@ -1,11 +1,15 @@
 # Contributing
 
-External contributions are paused until the copyright owner records a reviewed
-license and contributor policy in
-[the license decision](docs/decisions/001-license.md). Opening the repository or
-accepting outside code before that decision could make later relicensing
-impossible. This file documents the engineering gate for current maintainers
-and future contributors; it does not grant a license to the source.
+The project is licensed AGPL-3.0-only and may also be offered under separate
+commercial licenses. External contributions are **not accepted** until a
+professionally reviewed contributor license agreement (CLA) is adopted that
+preserves the rights needed for commercial relicensing. Do not open or merge an
+outside pull request in the meantime; maintainers will close it without using
+the submitted code. See [the license decision](docs/decisions/001-license.md).
+
+This file documents the engineering gate for current maintainers and future
+contributors. The license grant for the source is in [LICENSE](LICENSE), not in
+this contribution guide.
 
 ## Development setup
 
@@ -49,6 +53,9 @@ Security reports and payment disputes do not belong in public issues. Follow
 [SECURITY.md](SECURITY.md) and [SUPPORT.md](SUPPORT.md).
 
 ## Pull-request checklist
+
+This checklist applies to authorized maintainer work only until the reviewed
+CLA is in place.
 
 - Explain the user-visible outcome and migration/rollback impact.
 - List the commands run and their results.

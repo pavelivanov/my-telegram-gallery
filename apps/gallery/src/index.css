@@ -278,6 +278,21 @@ body {
   padding: 30px clamp(20px, 5vw, 68px) 56px;
 }
 
+.source-notice {
+  border-top: 1px solid var(--color-line);
+  padding: 14px 20px 18px;
+  color: var(--color-ink-dim);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.source-notice a {
+  color: var(--color-brass);
+  text-underline-offset: 3px;
+}
+
 .public-report {
   width: min(100%, 360px);
   color: var(--color-ink-dim);
@@ -977,6 +992,18 @@ body {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.landing__footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  justify-content: flex-end;
+}
+
+.landing__footer a {
+  color: inherit;
+  text-underline-offset: 3px;
 }
 
 .landing__footer nav {

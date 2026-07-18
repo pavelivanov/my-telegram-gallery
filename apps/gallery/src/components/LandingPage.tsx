@@ -160,8 +160,11 @@ export function LandingPage() {
 
       <footer className="landing__footer">
         <span>Gallery · pre-release</span>
-        {config?.termsUrl || config?.privacyUrl ? (
+        {config ? (
           <nav aria-label="Legal">
+            <a href={config.sourceUrl} rel="noreferrer" target="_blank">
+              Source v{config.version} · AGPL-3.0-only · no warranty
+            </a>
             {config.termsUrl ? (
               <a href={config.termsUrl} rel="noreferrer" target="_blank">Terms</a>
             ) : null}
