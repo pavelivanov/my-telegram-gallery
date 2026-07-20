@@ -49,6 +49,21 @@ pnpm build
 - Prisma generates into `apps/api/generated/prisma` (gitignored). Regenerate
   after schema changes or a fresh install.
 
+## Completion workflow
+
+- When an in-scope task is complete and its relevant verification passes,
+  inspect the final diff, stage only the task's changes, create a descriptive
+  commit, and push the current branch to its configured upstream automatically.
+- If the worktree has no task changes, do not create an empty commit. Push only
+  when the current branch contains unpushed commits.
+- Never force-push, rewrite shared history, commit secrets/generated release
+  evidence, or include unrelated user changes. If a safe commit or push cannot
+  complete, preserve the work and report the exact blocker.
+- Report the resulting commit hash and pushed branch at handoff.
+- A routine source-code push does not authorize a deployment, release tag,
+  registry/package publication, repository visibility change, or other
+  external launch action; those remain governed by the deployment rules below.
+
 ## Deployment rules
 
 - Never deploy, publish, change DNS, configure BotFather/webhooks, or push a
