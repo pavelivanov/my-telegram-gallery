@@ -188,13 +188,13 @@ jobs:
           "registry:$IMAGE_NAME@$DIGEST"
           --output cyclonedx-json=sbom.cdx.json
       - name: Attach keyless build provenance to the registry image
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4
         with:
           subject-name: ${{ steps.coordinates.outputs.name }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
           push-to-registry: true
       - name: Attach the CycloneDX SBOM attestation
-        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4
         with:
           subject-name: ${{ steps.coordinates.outputs.name }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
